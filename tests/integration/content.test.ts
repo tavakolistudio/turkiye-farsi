@@ -113,7 +113,7 @@ describe("Article + Source + Media relations", () => {
     const article = await articleService.create(ctx, { title: `${PREFIX} برای حذف` });
     created.articles.push(article.id);
 
-    const updated = await articleService.update(ctx, article.id, { title: `${PREFIX} ویرایش‌شده` });
+    const updated = await articleService.update(ctx, article.id, { title: `${PREFIX} ویرایش‌شده`, version: article.currentVersion });
     expect(updated.title).toContain("ویرایش‌شده");
 
     await articleService.softDelete(ctx, article.id);
@@ -124,17 +124,19 @@ describe("Article + Source + Media relations", () => {
   });
 
   it("locks the slug after publication", async () => {
-    const a = await articleService.create(ctx, { title: `${PREFIX} منتشر`, status: "PUBLISHED", slug: `${PREFIX}-pub` });
+    const a = await articleService.create(ctx, { title: `${PREFIX} منتشر`, slug: `${PREFIX}-pub` });
     created.articles.push(a.id);
-    await expect(articleService.update(ctx, a.id, { slug: `${PREFIX}-new` })).rejects.toBeInstanceOf(ApiError);
+    await prisma.article.update({ where: { id: a.id }, data: { status: "PUBLISHED", publishedAt: new Date() } });
+    await expect(articleService.update(ctx, a.id, { slug: `${PREFIX}-new`, version: a.currentVersion })).rejects.toBeInstanceOf(ApiError);
   });
 });
 
 describe("Public content API", () => {
   it("returns only PUBLISHED articles", async () => {
     const draft = await articleService.create(ctx, { title: `${PREFIX} پیش‌نویس عمومی`, status: "DRAFT" });
-    const pub = await articleService.create(ctx, { title: `${PREFIX} منتشر عمومی`, status: "PUBLISHED" });
+    const pub = await articleService.create(ctx, { title: `${PREFIX} منتشر عمومی` });
     created.articles.push(draft.id, pub.id);
+    await prisma.article.update({ where: { id: pub.id }, data: { status: "PUBLISHED", publishedAt: new Date() } });
 
     const { rows } = await publicContentService.listArticles({
       page: 1, pageSize: 100, order: "desc", includeDeleted: false, search: PREFIX,
