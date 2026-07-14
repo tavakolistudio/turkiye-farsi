@@ -112,10 +112,13 @@ export const searchService = {
 
     const total = Number(countRows[0]?.count ?? 0);
 
-    // Record demand — never let logging failure break the search.
-    prisma.searchLog
-      .create({ data: { query, resultCount: total } })
-      .catch(() => {});
+    // Record demand (including zero-result queries) — never let a logging
+    // failure break the search itself.
+    try {
+      await prisma.searchLog.create({ data: { query, resultCount: total } });
+    } catch {
+      /* logging is best-effort */
+    }
 
     let rows: PublicCard[] = [];
     if (ranked.length) {

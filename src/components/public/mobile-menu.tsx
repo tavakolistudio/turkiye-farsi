@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { SearchBox } from "./search-box";
@@ -44,7 +45,7 @@ export function MobileMenu({ categories }: { categories: NavItem[] }) {
         <Menu className="h-6 w-6" aria-hidden="true" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -95,7 +96,8 @@ export function MobileMenu({ categories }: { categories: NavItem[] }) {
               </ul>
             </nav>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

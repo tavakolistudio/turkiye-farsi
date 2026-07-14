@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { safeContentUrl } from "@/lib/editorial/content";
 
 /**
  * Safe public renderer for a sanitized TipTap/ProseMirror document.
@@ -29,12 +30,18 @@ function marked(text: ReactNode, marks: Mark[] | undefined, key: string): ReactN
     if (mark.type === "italic") return <em key={`${key}-i${index}`}>{child}</em>;
     if (mark.type === "strike") return <s key={`${key}-s${index}`}>{child}</s>;
     if (mark.type === "code") return <code key={`${key}-c${index}`}>{child}</code>;
-    if (mark.type === "link" && typeof mark.attrs?.href === "string") {
-      return (
-        <a key={`${key}-a${index}`} href={mark.attrs.href} rel="noopener noreferrer nofollow" target="_blank" className="text-primary underline underline-offset-2">
-          {child}
-        </a>
-      );
+    if (mark.type === "link") {
+      // Defense-in-depth: re-validate the href at render time so an unsafe URL
+      // (e.g. javascript:) is neutralised even if it bypassed sanitization.
+      const href = safeContentUrl(mark.attrs?.href);
+      if (href) {
+        return (
+          <a key={`${key}-a${index}`} href={href} rel="noopener noreferrer nofollow" target="_blank" className="text-primary underline underline-offset-2">
+            {child}
+          </a>
+        );
+      }
+      return child;
     }
     return child;
   }, text);
@@ -78,7 +85,7 @@ function renderNode(node: Node, key: string): ReactNode {
     case "horizontalRule":
       return <hr key={key} />;
     case "image": {
-      const src = str(attrs.src);
+      const src = safeContentUrl(attrs.src);
       if (!src) return null;
       const alt = str(attrs.alt) ?? "";
       const caption = str(attrs.title);
@@ -96,20 +103,21 @@ function renderNode(node: Node, key: string): ReactNode {
         : [];
       return (
         <div className="article-gallery" key={key}>
-          {images.map((image, i) =>
-            image.src ? (
+          {images.map((image, i) => {
+            const gsrc = safeContentUrl(image.src);
+            return gsrc ? (
               <figure key={`${key}-${i}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.src} alt={image.alt ?? ""} loading="lazy" />
+                <img src={gsrc} alt={image.alt ?? ""} loading="lazy" />
                 {image.caption && <figcaption className="mt-1 text-center text-sm text-muted-foreground">{image.caption}</figcaption>}
               </figure>
-            ) : null,
-          )}
+            ) : null;
+          })}
         </div>
       );
     }
     case "video": {
-      const src = str(attrs.src);
+      const src = safeContentUrl(attrs.src);
       return src ? <video key={key} controls preload="metadata" src={src} /> : null;
     }
     case "youtube": {
@@ -187,7 +195,7 @@ function renderNode(node: Node, key: string): ReactNode {
         </aside>
       );
     case "fileAttachment": {
-      const url = str(attrs.url);
+      const url = safeContentUrl(attrs.url);
       return url ? (
         <p key={key}>
           <a href={url} rel="noopener noreferrer" target="_blank" className="text-primary underline">
