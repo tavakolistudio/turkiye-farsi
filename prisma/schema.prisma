@@ -1,0 +1,916 @@
+// Turkey Farsi (ترکیه فارسی) — Prisma schema
+// PostgreSQL. Designed to run on local embedded Postgres in dev and Supabase
+// Postgres in production without changes (connection strings come from env).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum ArticleStatus {
+  DRAFT
+  IN_REVIEW
+  NEEDS_CORRECTION
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+  REJECTED
+}
+
+enum ContentType {
+  SHORT_NEWS
+  NEWS
+  ARTICLE
+  ANALYSIS
+  GUIDE
+  NOTICE
+  VIDEO
+}
+
+enum FactCheckStatus {
+  UNCHECKED
+  PARTIALLY_VERIFIED
+  VERIFIED
+  DISPUTED
+}
+
+// Whether an article's sources have been added/verified.
+enum ArticleSourceStatus {
+  MISSING
+  ADDED
+  VERIFIED
+}
+
+enum SourceType {
+  OFFICIAL
+  NEWS_AGENCY
+  MEDIA
+  GOVERNMENT
+  SOCIAL_MEDIA
+  USER_SUBMITTED
+  OTHER
+}
+
+enum CredibilityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  VERIFIED
+}
+
+enum MediaRole {
+  FEATURED
+  GALLERY
+  INLINE
+  VIDEO
+  ATTACHMENT
+  OG_IMAGE
+}
+
+enum AdPlacement {
+  HEADER
+  HOMEPAGE
+  IN_ARTICLE
+  BELOW_ARTICLE
+  SIDEBAR
+}
+
+enum AdStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  SPAM
+}
+
+enum ReportStatus {
+  NEW
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum ErrorReportType {
+  FACTUAL
+  TYPO
+  OUTDATED
+  BROKEN_LINK
+  OTHER
+}
+
+enum SubscriberStatus {
+  PENDING
+  CONFIRMED
+  UNSUBSCRIBED
+}
+
+enum HomeSectionType {
+  HERO
+  LATEST
+  TODAY_IMPORTANT
+  BREAKING
+  CATEGORY
+  RESIDENCY_MIGRATION
+  NEW_LAWS
+  ECONOMY
+  CITY
+  MOST_VIEWED
+  EDITOR_PICKS
+  NEWSLETTER
+  ADVERTISEMENT
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+  BOT
+  UNKNOWN
+}
+
+// ─────────────────────── Auth / RBAC ─────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  // Supabase Auth user id (auth.users.id) — null for locally-seeded users.
+  authId       String?   @unique
+  email        String    @unique
+  // Optional local credential fallback (bcrypt/argon hash). Supabase owns auth in prod.
+  passwordHash String?
+  name         String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  profile           Profile?
+  roles             UserRole[]
+  articles          Article[]              @relation("ArticleAuthor")
+  assignedArticles  Article[]              @relation("ArticleAssignedEditor")
+  revisions         ArticleRevision[]      @relation("RevisionChangedBy")
+  corrections       ArticleCorrection[]    @relation("CorrectionBy")
+  workflowEvents    ArticleWorkflowEvent[] @relation("WorkflowActor")
+  editorialComments EditorialComment[]     @relation("CommentAuthor")
+  previewTokens     PreviewToken[]         @relation("PreviewCreatedBy")
+  notifications     Notification[]         @relation("NotificationRecipient")
+  notificationsSent Notification[]         @relation("NotificationActor")
+  uploadedMedia     Media[]
+  auditLogs         AuditLog[]
+  sessions          Session[]
+  passwordResets    PasswordResetToken[]
+
+  @@index([deletedAt])
+  @@map("users")
+}
+
+// Server-side session. The raw token is only ever in the user's cookie; we
+// store a SHA-256 hash so a DB leak can't be replayed. Revocable per-session
+// or per-user (for "sign out everywhere" / deactivation).
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent  String?
+  ip         String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Login attempts, used for rate limiting and audit. Records both successes and
+// failures keyed by email + ip.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String?
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+  @@map("login_attempts")
+}
+
+// One-time password reset token (SHA-256 hashed). Single use, time-limited.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Profile {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName  String?
+  slug         String  @unique
+  avatarUrl    String?
+  bio          String?
+  expertise    String?
+  publicEmail  String?
+  twitter      String?
+  instagram    String?
+  telegram     String?
+  linkedin     String?
+  website      String?
+  isPublic     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. SUPER_ADMIN, EDITOR_IN_CHIEF
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. article.publish
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ───────────────────────── Content ───────────────────────────
+
+enum CorrectionType {
+  MINOR
+  MAJOR
+  FACTUAL
+  LEGAL
+  SOURCE_UPDATE
+}
+
+enum NotificationType {
+  SUBMIT_REVIEW
+  REQUEST_CORRECTION
+  APPROVED
+  REJECTED
+  SCHEDULED
+  PUBLISH_FAILED
+  MENTION
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  subtitle    String?
+  summary     String?
+  bodyJson    Json?         // TipTap/ProseMirror document (sanitized on the server)
+  contentType ContentType   @default(NEWS)
+  status      ArticleStatus @default(DRAFT)
+
+  // Optimistic-locking counter; bumped on every persisted content change so
+  // autosave can reject a stale write.
+  currentVersion Int @default(0)
+
+  // Primary category as a direct FK (fast queries) plus the ArticleCategory
+  // join table for secondary categories + ordering.
+  primaryCategoryId String?
+  primaryCategory   Category? @relation("ArticlePrimaryCategory", fields: [primaryCategoryId], references: [id], onDelete: SetNull)
+
+  authorId String
+  author   User   @relation("ArticleAuthor", fields: [authorId], references: [id])
+
+  // Editor assigned to review/shepherd this article through the workflow.
+  assignedEditorId String?
+  assignedEditor   User?   @relation("ArticleAssignedEditor", fields: [assignedEditorId], references: [id], onDelete: SetNull)
+
+  featuredImageId String?
+  featuredImage   Media?  @relation("ArticleFeatured", fields: [featuredImageId], references: [id], onDelete: SetNull)
+
+  readingTime     Int?
+  priority        Int     @default(0)
+  isBreaking      Boolean @default(false)
+  isEditorsPick   Boolean @default(false)
+  isHero          Boolean @default(false)
+  isFeatured      Boolean @default(false)
+  commentsEnabled Boolean @default(false)
+
+  // Editorial context tailored to the audience
+  whyItMatters    String?
+  whoIsAffected   String?
+  whatToDo        String?
+  factCheckStatus FactCheckStatus     @default(UNCHECKED)
+  changeWarning   Boolean             @default(false)
+  sourceStatus    ArticleSourceStatus @default(MISSING)
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  ogImageId       String?
+  ogImage         Media?  @relation("ArticleOgImage", fields: [ogImageId], references: [id], onDelete: SetNull)
+  noindex         Boolean @default(false)
+
+  // Social captions (future channels — Phase 5+)
+  instagramCaption String?
+  telegramCaption  String?
+  reelTitle        String?
+  carouselTitle    String?
+  pushTitle        String?
+  pushBody         String?
+
+  viewCount Int @default(0)
+
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  categories     ArticleCategory[]
+  tags           ArticleTag[]
+  sources        ArticleSource[]
+  media          ArticleMedia[]
+  revisions      ArticleRevision[]
+  corrections    ArticleCorrection[]
+  errorReports   ArticleErrorReport[]
+  pageViews      PageView[]
+  homeSections   HomeSectionItem[]
+  workflowEvents ArticleWorkflowEvent[]
+  comments       EditorialComment[]
+  previewTokens  PreviewToken[]
+  notifications  Notification[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([status, publishedAt])
+  @@index([publishedAt])
+  @@index([assignedEditorId])
+  @@index([primaryCategoryId])
+  @@index([authorId])
+  @@index([scheduledAt])
+  @@index([isBreaking])
+  @@index([isHero])
+  @@index([isEditorsPick])
+  @@index([deletedAt])
+  @@map("articles")
+}
+
+// Immutable historical snapshot of an article at a point in time. Created only
+// on meaningful events (submit/approve/publish/restore), never on every autosave.
+model ArticleRevision {
+  id            String        @id @default(cuid())
+  articleId     String
+  article       Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  title         String
+  subtitle      String?
+  summary       String?
+  bodyJson      Json?
+  metaTitle       String?
+  metaDescription String?
+  whyItMatters    String?
+  whoIsAffected   String?
+  whatToDo        String?
+  status        ArticleStatus
+  changedById   String
+  changedBy     User          @relation("RevisionChangedBy", fields: [changedById], references: [id])
+  changeReason  String?
+  createdAt     DateTime      @default(now())
+
+  @@unique([articleId, versionNumber])
+  @@index([articleId, createdAt])
+  @@index([changedById])
+  @@map("article_revisions")
+}
+
+// A public correction notice, distinct from a revision snapshot.
+model ArticleCorrection {
+  id             String         @id @default(cuid())
+  articleId      String
+  article        Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  correctionType CorrectionType @default(MINOR)
+  correctedById  String
+  correctedBy    User           @relation("CorrectionBy", fields: [correctedById], references: [id])
+  order          Int            @default(0)
+  isPublished    Boolean        @default(false)
+  publishedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  @@index([articleId, order])
+  @@map("article_corrections")
+}
+
+// Each workflow status transition, for the timeline and audit.
+model ArticleWorkflowEvent {
+  id         String        @id @default(cuid())
+  articleId  String
+  article    Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  fromStatus ArticleStatus?
+  toStatus   ArticleStatus
+  actorId    String
+  actor      User          @relation("WorkflowActor", fields: [actorId], references: [id])
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  @@index([articleId, createdAt])
+  @@map("article_workflow_events")
+}
+
+// Internal editorial notes (threaded). Never exposed on the public site.
+model EditorialComment {
+  id         String    @id @default(cuid())
+  articleId  String
+  article    Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User      @relation("CommentAuthor", fields: [authorId], references: [id])
+  parentId   String?
+  parent     EditorialComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    EditorialComment[] @relation("CommentThread")
+  body       String
+  isResolved Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([articleId, createdAt])
+  @@map("editorial_comments")
+}
+
+// Time-limited, hashed token granting preview access to a non-published article.
+model PreviewToken {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation("PreviewCreatedBy", fields: [createdById], references: [id])
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([articleId])
+  @@index([expiresAt])
+  @@map("preview_tokens")
+}
+
+// Log of scheduled-publish cron runs (idempotency + diagnostics).
+model PublishJobLog {
+  id        String   @id @default(cuid())
+  articleId String?
+  jobType   String   // e.g. "scheduled_publish"
+  status    String   // "SUCCESS" | "FAILED" | "SKIPPED"
+  detail    String?
+  error     String?
+  runAt     DateTime @default(now())
+
+  @@index([runAt])
+  @@index([articleId])
+  @@map("publish_job_logs")
+}
+
+// Simple in-app notification for editorial events.
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  articleId String?
+  article   Article?         @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  actorId   String?
+  actor     User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+model Category {
+  id              String  @id @default(cuid())
+  name            String
+  slug            String  @unique
+  description     String?
+  imageId         String?
+  image           Media?  @relation("CategoryImage", fields: [imageId], references: [id], onDelete: SetNull)
+  metaTitle       String?
+  metaDescription String?
+  order           Int     @default(0)
+  isActive        Boolean @default(true)
+  parentId        String?
+  parent          Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Category[] @relation("CategoryTree")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  articles        ArticleCategory[]
+  primaryArticles Article[]         @relation("ArticlePrimaryCategory")
+
+  @@index([slug])
+  @@index([parentId])
+  @@index([order])
+  @@index([deletedAt])
+  @@map("categories")
+}
+
+model ArticleCategory {
+  articleId  String
+  categoryId String
+  isPrimary  Boolean @default(false)
+  order      Int     @default(0)
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, categoryId])
+  @@index([categoryId])
+  @@map("article_categories")
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  articles ArticleTag[]
+
+  @@index([slug])
+  @@index([deletedAt])
+  @@map("tags")
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+  @@map("article_tags")
+}
+
+model Source {
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  websiteUrl       String?
+  logoId           String?
+  logo             Media?           @relation("SourceLogo", fields: [logoId], references: [id], onDelete: SetNull)
+  country          String?
+  language         String?
+  sourceType       SourceType       @default(OTHER)
+  credibilityLevel CredibilityLevel @default(MEDIUM)
+  isOfficial       Boolean          @default(false)
+  isActive         Boolean          @default(true)
+  description      String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  articles ArticleSource[]
+
+  @@index([slug])
+  @@index([sourceType])
+  @@index([deletedAt])
+  @@map("sources")
+}
+
+model ArticleSource {
+  id          String    @id @default(cuid())
+  articleId   String
+  sourceId    String
+  sourceUrl   String?
+  sourceTitle String?
+  accessedAt  DateTime?
+  isPrimary   Boolean   @default(false)
+  note        String?
+  createdAt   DateTime  @default(now())
+  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  source      Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceId])
+  @@index([articleId])
+  @@index([sourceId])
+  @@map("article_sources")
+}
+
+// ───────────────────────── Media ─────────────────────────────
+
+model MediaFolder {
+  id        String        @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  MediaFolder[] @relation("FolderTree")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deletedAt DateTime?
+
+  media Media[]
+
+  @@index([parentId])
+  @@index([deletedAt])
+  @@map("media_folders")
+}
+
+model Media {
+  id               String       @id @default(cuid())
+  filename         String       // safe, stored name
+  originalFilename String       // user-provided name (display only)
+  storagePath      String       // key/path within the storage provider
+  publicUrl        String
+  mimeType         String
+  size             Int          // bytes
+  width            Int?
+  height           Int?
+  duration         Int?         // seconds, for audio/video
+  alt              String?
+  caption          String?
+  credit           String?
+  folderId         String?
+  folder           MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploadedById     String?
+  uploadedBy       User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  featuredArticles Article[]      @relation("ArticleFeatured")
+  ogArticles       Article[]      @relation("ArticleOgImage")
+  categoryImages   Category[]     @relation("CategoryImage")
+  sourceLogos      Source[]       @relation("SourceLogo")
+  articleMedia     ArticleMedia[]
+
+  @@index([mimeType])
+  @@index([folderId])
+  @@index([deletedAt])
+  @@map("media")
+}
+
+// Media attached to an article for galleries, inline content, attachments, etc.
+model ArticleMedia {
+  id              String    @id @default(cuid())
+  articleId       String
+  mediaId         String
+  role            MediaRole @default(INLINE)
+  order           Int       @default(0)
+  captionOverride String?
+  createdAt       DateTime  @default(now())
+  article         Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  media           Media     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, role, order])
+  @@index([mediaId])
+  @@map("article_media")
+}
+
+// ──────────────── Homepage / Breaking / Ads ──────────────────
+
+model HomeSection {
+  id        String          @id @default(cuid())
+  type      HomeSectionType
+  title     String
+  order     Int             @default(0)
+  isEnabled Boolean         @default(true)
+  itemCount Int             @default(6)
+  categoryId String?
+  config    Json?           // extra per-section config
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  items HomeSectionItem[]
+
+  @@index([order])
+  @@map("home_sections")
+}
+
+model HomeSectionItem {
+  id           String  @id @default(cuid())
+  homeSectionId String
+  homeSection  HomeSection @relation(fields: [homeSectionId], references: [id], onDelete: Cascade)
+  articleId    String
+  article      Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  order        Int     @default(0)
+
+  @@unique([homeSectionId, articleId])
+  @@index([homeSectionId, order])
+  @@map("home_section_items")
+}
+
+model BreakingNews {
+  id         String   @id @default(cuid())
+  title      String
+  url        String?
+  articleId  String?
+  priority   Int      @default(0)
+  color      String?
+  isActive   Boolean  @default(true)
+  showMobile Boolean  @default(true)
+  showDesktop Boolean @default(true)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive, priority])
+  @@map("breaking_news")
+}
+
+model Advertisement {
+  id         String      @id @default(cuid())
+  name       String
+  imageUrl   String?
+  linkUrl    String?
+  placement  AdPlacement
+  status     AdStatus    @default(DRAFT)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  impressions Int        @default(0)
+  clicks     Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([placement, status])
+  @@map("advertisements")
+}
+
+// ──────────────── Newsletter / Forms / Reports ───────────────
+
+model NewsletterSubscriber {
+  id            String           @id @default(cuid())
+  email         String           @unique
+  status        SubscriberStatus @default(PENDING)
+  confirmToken  String?          @unique
+  source        String?
+  confirmedAt   DateTime?
+  unsubscribedAt DateTime?
+  createdAt     DateTime         @default(now())
+
+  @@index([status])
+  @@map("newsletter_subscribers")
+}
+
+model ContactSubmission {
+  id          String        @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  subject     String
+  message     String
+  status      ContactStatus @default(NEW)
+  internalNote String?
+  createdAt   DateTime      @default(now())
+
+  @@index([status])
+  @@map("contact_submissions")
+}
+
+model ArticleErrorReport {
+  id          String          @id @default(cuid())
+  articleId   String
+  article     Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  name        String?
+  email       String?
+  type        ErrorReportType @default(OTHER)
+  detail      String
+  status      ReportStatus    @default(NEW)
+  internalNote String?
+  createdAt   DateTime        @default(now())
+
+  @@index([articleId])
+  @@index([status])
+  @@map("article_error_reports")
+}
+
+// ──────────────── Settings / Analytics / System ──────────────
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+model SearchLog {
+  id          String   @id @default(cuid())
+  query       String
+  resultCount Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([resultCount])
+  @@index([createdAt])
+  @@map("search_logs")
+}
+
+model PageView {
+  id         String     @id @default(cuid())
+  articleId  String?
+  article    Article?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  path       String
+  referrer   String?
+  deviceType DeviceType @default(UNKNOWN)
+  sessionKey String?    // non-sensitive rotating identifier
+  sourceClick Boolean   @default(false)
+  createdAt  DateTime   @default(now())
+
+  @@index([articleId, createdAt])
+  @@index([createdAt])
+  @@map("page_views")
+}
+
+model Redirect {
+  id        String   @id @default(cuid())
+  from      String   @unique
+  to        String
+  permanent Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("redirects")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g. article.publish
+  entityType String?
+  entityId   String?
+  ip         String?
+  userAgent  String?
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

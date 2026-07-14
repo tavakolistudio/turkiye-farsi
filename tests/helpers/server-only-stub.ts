@@ -1,0 +1,2 @@
+// Test-only stub for the `server-only` package (which throws outside RSC).
+export {};
