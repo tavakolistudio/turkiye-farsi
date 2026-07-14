@@ -859,6 +859,25 @@ model SiteSetting {
   @@map("site_settings")
 }
 
+// Editor-managed static/institutional pages (About, Contact, Privacy, …).
+// Body is a sanitized TipTap document rendered by the same safe public
+// renderer used for articles. Not a page builder — just managed content.
+model StaticPage {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  bodyJson        Json?     // sanitized TipTap/ProseMirror document
+  metaTitle       String?
+  metaDescription String?
+  isPublished     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([slug])
+  @@map("static_pages")
+}
+
 model SearchLog {
   id          String   @id @default(cuid())
   query       String
