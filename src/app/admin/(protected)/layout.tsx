@@ -21,6 +21,9 @@ export default async function AdminLayout({
   const nav: { href: string; label: string; show: boolean }[] = [
     { href: "/admin", label: "داشبورد", show: true },
     { href: "/admin/articles", label: "مطالب", show: hasPermission(user, PERMISSIONS.ARTICLE_VIEW) },
+    { href: "/admin/editorial/review-queue", label: "صف بررسی", show: hasPermission(user, PERMISSIONS.ARTICLE_VIEW) },
+    { href: "/admin/editorial/scheduled", label: "زمان‌بندی‌شده", show: hasPermission(user, PERMISSIONS.ARTICLE_SCHEDULE) },
+    { href: "/admin/notifications", label: "اعلان‌ها", show: hasPermission(user, PERMISSIONS.ARTICLE_VIEW) },
     { href: "/admin/categories", label: "دسته‌بندی‌ها", show: hasPermission(user, PERMISSIONS.CATEGORY_VIEW) },
     { href: "/admin/tags", label: "برچسب‌ها", show: hasPermission(user, PERMISSIONS.TAG_VIEW) },
     { href: "/admin/sources", label: "منابع", show: hasPermission(user, PERMISSIONS.SOURCE_VIEW) },

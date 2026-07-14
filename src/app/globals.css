@@ -59,6 +59,19 @@
 .article-box-warning { border-color: color-mix(in srgb, orange 60%, transparent); background: color-mix(in srgb, orange 8%, transparent); }
 .article-box-infoBox { border-color: color-mix(in srgb, dodgerblue 60%, transparent); background: color-mix(in srgb, dodgerblue 8%, transparent); }
 .article-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.tiptap { line-height: 2; }
+.tiptap p.is-editor-empty:first-child::before { color: var(--muted-foreground); content: attr(data-placeholder); float: right; height: 0; pointer-events: none; }
+.tiptap h2 { font-size: 1.5rem; font-weight: 800; margin-top: 1.5rem; }
+.tiptap h3 { font-size: 1.25rem; font-weight: 750; margin-top: 1.25rem; }
+.tiptap ul { list-style: disc; padding-inline-start: 1.5rem; }
+.tiptap ol { list-style: decimal; padding-inline-start: 1.5rem; }
+.tiptap blockquote { border-inline-start: 4px solid var(--primary); padding-inline-start: 1rem; }
+.tiptap table { border-collapse: collapse; width: 100%; }
+.tiptap td, .tiptap th { border: 1px solid var(--border); min-width: 80px; padding: .4rem; }
+.editorial-box { border: 1px solid var(--border); border-radius: .5rem; margin-block: 1rem; padding: .75rem; }
+.editorial-warning { border-color: orange; }
+.editorial-info { border-color: dodgerblue; }
+.editorial-atom { border: 1px dashed var(--primary); border-radius: .5rem; margin-block: 1rem; padding: 1rem; }
 
 .dark {
   --background: 220 18% 8%;

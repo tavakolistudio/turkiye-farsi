@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
-import { CONTENT_TYPES, CONTENT_TYPE_LABELS, ARTICLE_STATUSES, ARTICLE_STATUS_LABELS } from "@/lib/content-enums";
+import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/content-enums";
 import type { FormState } from "@/lib/forms";
+import { TiptapEditor } from "@/components/editor/tiptap-editor";
 
 type Action = (prev: FormState, fd: FormData) => Promise<FormState>;
 type Opt = { id: string; name: string };
@@ -20,9 +21,9 @@ export interface ArticleFormValues {
   slug?: string;
   subtitle?: string | null;
   summary?: string | null;
-  body?: string;
+  bodyJson?: unknown;
+  currentVersion?: number;
   contentType?: string;
-  status?: string;
   primaryCategoryId?: string | null;
   authorId?: string;
   featuredImageId?: string | null;
@@ -38,17 +39,109 @@ export function ArticleForm({
   action,
   options,
   initial = {},
+  autosave = false,
 }: {
   action: Action;
   options: { categories: Opt[]; tags: Opt[]; authors: Opt[]; media: Opt[]; sources: Opt[] };
   initial?: ArticleFormValues;
+  autosave?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
   const fe = state.fieldErrors ?? {};
+  const formRef = useRef<HTMLFormElement>(null);
+  const bodyInputRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<unknown>(initial.bodyJson ?? { type: "doc", content: [{ type: "paragraph" }] });
+  const versionRef = useRef(initial.currentVersion ?? 0);
+  const dirtyRef = useRef(false);
+  const [saveState, setSaveState] = useState(autosave ? "آماده‌سازی ذخیره…" : "ذخیره‌شده");
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!autosave || !initial.id || !form) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let sequence = 0;
+    let controller: AbortController | undefined;
+
+    const save = async (isRetry = false) => {
+      const requestSequence = ++sequence;
+      controller?.abort();
+      controller = new AbortController();
+      const fd = new FormData(form);
+      const text = (name: string) => String(fd.get(name) ?? "").trim() || null;
+      const payload = {
+        version: versionRef.current,
+        title: text("title"),
+        subtitle: text("subtitle"),
+        summary: text("summary"),
+        bodyJson: bodyRef.current,
+      };
+      setSaveState(isRetry ? "تلاش دوباره…" : "در حال ذخیره…");
+      try {
+        const response = await fetch(`/api/v1/admin/articles/${initial.id}/autosave`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        const result = await response.json() as { success: boolean; data?: { currentVersion: number }; error?: { code: string; message: string } };
+        if (requestSequence !== sequence) return;
+        if (!response.ok || !result.success || !result.data) {
+          if (result.error?.code === "VERSION_CONFLICT") {
+            setSaveState("تعارض نسخه — صفحه را تازه کنید");
+            return;
+          }
+          throw new Error(result.error?.message || "ذخیره ناموفق بود");
+        }
+        versionRef.current = result.data.currentVersion;
+        const versionInput = form.elements.namedItem("version") as HTMLInputElement | null;
+        if (versionInput) versionInput.value = String(versionRef.current);
+        dirtyRef.current = false;
+        setSaveState("ذخیره شد");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (!isRetry && requestSequence === sequence) {
+          setSaveState("خطای شبکه — تلاش دوباره…");
+          retryTimer = setTimeout(() => { if (dirtyRef.current && requestSequence === sequence) void save(true); }, 2_000);
+        } else if (requestSequence === sequence) {
+          setSaveState("ذخیره ناموفق — تغییرات باقی مانده‌اند");
+        }
+      }
+    };
+    const autosaveFields = new Set(["title", "subtitle", "summary", "bodyJson"]);
+    const changed = (event: Event) => {
+      const target = event.target as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!target?.name || !autosaveFields.has(target.name)) return;
+      dirtyRef.current = true;
+      setSaveState("تغییر ذخیره‌نشده");
+      if (timer) clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+      timer = setTimeout(() => void save(), 1_200);
+    };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    form.addEventListener("input", changed);
+    form.addEventListener("change", changed);
+    window.addEventListener("beforeunload", beforeUnload);
+    setSaveState("ذخیره‌شده");
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+      controller?.abort();
+      form.removeEventListener("input", changed);
+      form.removeEventListener("change", changed);
+      window.removeEventListener("beforeunload", beforeUnload);
+    };
+  }, [autosave, initial.id]);
 
   return (
-    <form action={formAction} className="grid max-w-3xl gap-4" noValidate>
+    <form ref={formRef} action={formAction} className="grid gap-4" noValidate>
       {initial.id && <input type="hidden" name="id" value={initial.id} />}
+      <input type="hidden" name="version" defaultValue={initial.currentVersion ?? 0} />
+      <input ref={bodyInputRef} type="hidden" name="bodyJson" defaultValue={JSON.stringify(initial.bodyJson ?? { type: "doc", content: [{ type: "paragraph" }] })} />
       {state.error && <Alert variant="error">{state.error}</Alert>}
 
       <div>
@@ -73,20 +166,12 @@ export function ArticleForm({
         <Textarea id="summary" name="summary" defaultValue={initial.summary ?? ""} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <div>
           <Label htmlFor="contentType">نوع محتوا</Label>
           <Select id="contentType" name="contentType" defaultValue={initial.contentType ?? "NEWS"}>
             {CONTENT_TYPES.map((t) => (
               <option key={t} value={t}>{CONTENT_TYPE_LABELS[t]}</option>
-            ))}
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="status">وضعیت</Label>
-          <Select id="status" name="status" defaultValue={initial.status ?? "DRAFT"}>
-            {ARTICLE_STATUSES.map((s) => (
-              <option key={s} value={s}>{ARTICLE_STATUS_LABELS[s]}</option>
             ))}
           </Select>
         </div>
@@ -150,9 +235,17 @@ export function ArticleForm({
       </div>
 
       <div>
-        <Label htmlFor="body">متن (پاراگراف‌ها با یک خط خالی جدا شوند)</Label>
-        <Textarea id="body" name="body" defaultValue={initial.body ?? ""} className="min-h-40" />
-        <p className="mt-1 text-xs text-muted-foreground">ویرایشگر کامل TipTap در فاز بعد اضافه می‌شود.</p>
+        <Label>متن مطلب</Label>
+        <TiptapEditor
+          value={initial.bodyJson}
+          onChange={(json) => {
+            bodyRef.current = json;
+            if (bodyInputRef.current) {
+              bodyInputRef.current.value = JSON.stringify(json);
+              bodyInputRef.current.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          }}
+        />
       </div>
 
       <fieldset className="rounded-lg border border-border p-4">
@@ -180,6 +273,7 @@ export function ArticleForm({
       <div className="flex gap-2">
         <Button type="submit" disabled={pending}>{pending ? "در حال ذخیره…" : "ذخیره"}</Button>
         <Link href="/admin/articles" className={buttonVariants({ variant: "outline" })}>انصراف</Link>
+        {autosave && <span className="self-center text-xs text-muted-foreground" aria-live="polite">{saveState}</span>}
       </div>
     </form>
   );
