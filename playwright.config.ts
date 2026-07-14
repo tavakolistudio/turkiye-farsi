@@ -23,6 +23,12 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
     navigationTimeout: 30_000,
+    // Allow pointing at a pre-installed browser binary (e.g. sandboxed CI
+    // images that ship Chromium at a fixed path). No-op when unset, so the
+    // default Playwright-managed browser is used.
+    launchOptions: process.env.PW_CHROMIUM_PATH
+      ? { executablePath: process.env.PW_CHROMIUM_PATH }
+      : {},
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
