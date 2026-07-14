@@ -250,8 +250,10 @@ async function seedSampleContent(
           filename: m.storagePath.split("/").pop()!,
           originalFilename: m.originalFilename,
           storagePath: m.storagePath,
-          publicUrl: `/${m.storagePath}`,
-          mimeType: "image/jpeg",
+          // Point at a committed placeholder asset so dev/demo seed data never
+          // renders a broken image (real uploads live in Storage in prod).
+          publicUrl: "/images/news-placeholder.svg",
+          mimeType: "image/svg+xml",
           size: 120_000,
           width: 1200,
           height: 675,
