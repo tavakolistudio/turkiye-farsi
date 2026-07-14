@@ -9,6 +9,10 @@ export type ErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "VERSION_CONFLICT"
+  | "INVALID_TRANSITION"
+  | "PUBLISH_VALIDATION_FAILED"
+  | "TOKEN_EXPIRED"
   | "SLUG_TAKEN"
   | "IN_USE"
   | "RATE_LIMITED"
@@ -24,6 +28,10 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  VERSION_CONFLICT: 409,
+  INVALID_TRANSITION: 409,
+  PUBLISH_VALIDATION_FAILED: 422,
+  TOKEN_EXPIRED: 410,
   SLUG_TAKEN: 409,
   IN_USE: 409,
   RATE_LIMITED: 429,
@@ -64,6 +72,20 @@ export class ApiError extends Error {
   }
   static conflict(message = "تعارض در داده‌ها.") {
     return new ApiError("CONFLICT", message);
+  }
+  static versionConflict(currentVersion: number) {
+    return new ApiError(
+      "VERSION_CONFLICT",
+      "نسخهٔ مطلب تغییر کرده است. پیش از ذخیره دوباره، تازه‌ترین نسخه را دریافت کنید.",
+      { currentVersion },
+    );
+  }
+  static invalidTransition(from: string, action: string) {
+    return new ApiError(
+      "INVALID_TRANSITION",
+      `عملیات ${action} از وضعیت ${from} مجاز نیست.`,
+      { from, action },
+    );
   }
   static inUse(message = "این مورد در حال استفاده است و قابل حذف نیست.") {
     return new ApiError("IN_USE", message);

@@ -11,14 +11,10 @@ import { PERMISSIONS } from "@/server/rbac/permissions";
 import { toFormError, str, bool, strList, type FormState } from "@/lib/forms";
 import type { ServiceContext } from "@/server/services/context";
 
-/** Wrap plain textarea body into a minimal TipTap/ProseMirror document. */
-function bodyToJson(text: string | undefined) {
-  if (!text) return undefined;
-  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  return {
-    type: "doc",
-    content: paragraphs.map((p) => ({ type: "paragraph", content: [{ type: "text", text: p }] })),
-  };
+function bodyJson(fd: FormData) {
+  const raw = str(fd, "bodyJson");
+  if (!raw) return undefined;
+  try { return JSON.parse(raw) as unknown; } catch { return undefined; }
 }
 
 function payload(fd: FormData) {
@@ -27,9 +23,9 @@ function payload(fd: FormData) {
     slug: str(fd, "slug"),
     subtitle: str(fd, "subtitle"),
     summary: str(fd, "summary"),
-    bodyJson: bodyToJson(str(fd, "body")),
+    bodyJson: bodyJson(fd),
+    version: Number(str(fd, "version") ?? 0),
     contentType: str(fd, "contentType"),
-    status: str(fd, "status"),
     primaryCategoryId: str(fd, "primaryCategoryId"),
     authorId: str(fd, "authorId"),
     featuredImageId: str(fd, "featuredImageId"),

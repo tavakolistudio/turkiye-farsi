@@ -3,11 +3,12 @@ import type { Prisma, ArticleStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { articleRepo, adminArticleInclude } from "@/server/data/article.repo";
 import { auditLog } from "@/server/audit/log";
-import { assertPermission, hasPermission, type AuthUser } from "@/server/rbac/authz";
+import { assertPermission, hasPermission } from "@/server/rbac/authz";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import { ApiError } from "@/lib/api/errors";
 import { generateUniqueSlug } from "@/lib/slug";
-import { readingMinutes } from "@/lib/reading-time";
+import { sanitizeBodyJson } from "@/lib/editorial/content";
+import { readingTimeService } from "./reading-time.service";
 import {
   createArticleSchema,
   updateArticleSchema,
@@ -18,12 +19,6 @@ import { buildOrderBy, paginationArgs, paginationMeta, type ListQuery } from "@/
 import type { ServiceContext } from "./context";
 
 const SORTABLE = ["createdAt", "updatedAt", "publishedAt", "title", "priority", "viewCount"] as const;
-
-/** Require the elevated permission for a target status, if any. */
-function assertStatusPermission(actor: AuthUser, status: ArticleStatus | undefined) {
-  if (status === "PUBLISHED") assertPermission(actor, PERMISSIONS.ARTICLE_PUBLISH);
-  if (status === "SCHEDULED") assertPermission(actor, PERMISSIONS.ARTICLE_SCHEDULE);
-}
 
 /** Ensure all referenced ids exist (prevents broken relations). */
 async function assertRelationsExist(input: Partial<CreateArticleInput>) {
@@ -75,13 +70,14 @@ function scalarData(input: Partial<CreateArticleInput>): Prisma.ArticleUpdateInp
   };
   (
     [
-      "title", "subtitle", "summary", "bodyJson", "contentType", "priority",
+      "title", "subtitle", "summary", "contentType", "priority",
       "isBreaking", "isEditorsPick", "isHero", "isFeatured", "commentsEnabled",
       "whyItMatters", "whoIsAffected", "whatToDo", "factCheckStatus", "changeWarning",
       "sourceStatus", "metaTitle", "metaDescription", "canonicalUrl", "noindex",
       "instagramCaption", "telegramCaption", "reelTitle", "carouselTitle", "pushTitle", "pushBody",
     ] as const
   ).forEach(assign);
+  if (input.bodyJson !== undefined) d.bodyJson = sanitizeBodyJson(input.bodyJson);
   return d;
 }
 
@@ -119,24 +115,23 @@ export const articleService = {
     assertPermission(ctx.actor, PERMISSIONS.ARTICLE_CREATE);
     const input = createArticleSchema.parse(raw);
     const authorId = input.authorId ?? ctx.actor.id;
-    assertStatusPermission(ctx.actor, input.status);
     await assertRelationsExist({ ...input, authorId });
 
     const slug = await generateUniqueSlug(input.slug ?? input.title, (s) => articleRepo.slugExists(s));
-    const readingTime = input.bodyJson ? readingMinutes(input.bodyJson as object) : null;
-    const publishedAt = input.status === "PUBLISHED" ? new Date() : null;
+    const sanitizedBody = input.bodyJson ? sanitizeBodyJson(input.bodyJson) : undefined;
+    const readingTime = sanitizedBody ? readingTimeService.calculate(sanitizedBody).minutes : null;
 
     const links = categoryLinks(input.primaryCategoryId, input.categoryIds);
     const tagLinks = (input.tagIds ?? []).map((id) => ({ tag: { connect: { id } } }));
 
     const created = await prisma.article.create({
       data: {
-        ...(scalarData(input) as Prisma.ArticleCreateInput),
+        ...(scalarData({ ...input, bodyJson: sanitizedBody }) as Prisma.ArticleCreateInput),
         title: input.title,
         slug,
-        status: input.status,
+        status: "DRAFT",
         readingTime,
-        publishedAt,
+        publishedAt: null,
         author: { connect: { id: authorId } },
         ...(input.primaryCategoryId ? { primaryCategory: { connect: { id: input.primaryCategoryId } } } : {}),
         ...(input.featuredImageId ? { featuredImage: { connect: { id: input.featuredImageId } } } : {}),
@@ -169,7 +164,6 @@ export const articleService = {
     const canOwn = hasPermission(ctx.actor, PERMISSIONS.ARTICLE_UPDATE_OWN) && existing.authorId === ctx.actor.id;
     if (!canAny && !canOwn) throw ApiError.forbidden();
 
-    assertStatusPermission(ctx.actor, input.status);
     await assertRelationsExist(input);
 
     // Slug is locked after publication to avoid breaking live URLs.
@@ -181,38 +175,25 @@ export const articleService = {
       slug = await generateUniqueSlug(input.slug, (s) => articleRepo.slugExists(s, id));
     }
 
-    const readingTime =
-      input.bodyJson !== undefined ? readingMinutes(input.bodyJson as object) : existing.readingTime;
-    const publishedAt =
-      input.status === "PUBLISHED" && !existing.publishedAt ? new Date() : existing.publishedAt;
+    if (existing.currentVersion !== input.version) throw ApiError.versionConflict(existing.currentVersion);
+    const sanitizedBody = input.bodyJson !== undefined ? sanitizeBodyJson(input.bodyJson) : undefined;
+    const readingTime = sanitizedBody !== undefined
+      ? readingTimeService.calculate(sanitizedBody).minutes
+      : existing.readingTime;
 
-    const data: Prisma.ArticleUpdateInput = {
-      ...scalarData(input),
+    const scalar: Prisma.ArticleUpdateManyMutationInput = {
+      ...(scalarData({ ...input, bodyJson: sanitizedBody }) as Prisma.ArticleUpdateManyMutationInput),
       slug,
       readingTime,
-      publishedAt,
-      ...(input.status !== undefined ? { status: input.status } : {}),
-      ...(input.authorId ? { author: { connect: { id: input.authorId } } } : {}),
-      ...(input.primaryCategoryId !== undefined
-        ? {
-            primaryCategory: input.primaryCategoryId
-              ? { connect: { id: input.primaryCategoryId } }
-              : { disconnect: true },
-          }
-        : {}),
-      ...(input.featuredImageId !== undefined
-        ? {
-            featuredImage: input.featuredImageId
-              ? { connect: { id: input.featuredImageId } }
-              : { disconnect: true },
-          }
-        : {}),
-      ...(input.ogImageId !== undefined
-        ? { ogImage: input.ogImageId ? { connect: { id: input.ogImageId } } : { disconnect: true } }
-        : {}),
+      currentVersion: { increment: 1 },
     };
 
     const updated = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.article.updateMany({
+        where: { id, currentVersion: input.version },
+        data: scalar,
+      });
+      if (!claimed.count) throw ApiError.versionConflict(input.version + 1);
       if (input.categoryIds !== undefined || input.primaryCategoryId !== undefined) {
         await tx.articleCategory.deleteMany({ where: { articleId: id } });
         const links = categoryLinks(
@@ -229,7 +210,22 @@ export const articleService = {
           await tx.articleTag.create({ data: { article: { connect: { id } }, tag: { connect: { id: tagId } } } });
         }
       }
-      return tx.article.update({ where: { id }, data, include: adminArticleInclude });
+      return tx.article.update({
+        where: { id },
+        data: {
+          ...(input.authorId ? { author: { connect: { id: input.authorId } } } : {}),
+          ...(input.primaryCategoryId !== undefined
+            ? { primaryCategory: input.primaryCategoryId ? { connect: { id: input.primaryCategoryId } } : { disconnect: true } }
+            : {}),
+          ...(input.featuredImageId !== undefined
+            ? { featuredImage: input.featuredImageId ? { connect: { id: input.featuredImageId } } : { disconnect: true } }
+            : {}),
+          ...(input.ogImageId !== undefined
+            ? { ogImage: input.ogImageId ? { connect: { id: input.ogImageId } } : { disconnect: true } }
+            : {}),
+        },
+        include: adminArticleInclude,
+      });
     });
 
     await auditLog({

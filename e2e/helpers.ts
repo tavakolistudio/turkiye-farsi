@@ -9,6 +9,10 @@ export const AUTHOR = {
   email: "author@turkiyefarsi.local",
   password: "Author!2026",
 };
+export const EDITOR_IN_CHIEF = {
+  email: "editor@turkiyefarsi.local",
+  password: "Editor!2026",
+};
 
 interface LoginOpts {
   /** Target path to redirect to after login (`next`). */

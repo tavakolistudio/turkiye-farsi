@@ -41,6 +41,11 @@ export const publicArticleSelect = {
   sources: {
     select: { sourceUrl: true, sourceTitle: true, isPrimary: true, source: { select: { name: true, slug: true } } },
   },
+  corrections: {
+    where: { isPublished: true, deletedAt: null },
+    orderBy: [{ order: "asc" as const }, { publishedAt: "asc" as const }],
+    select: { title: true, description: true, correctionType: true, publishedAt: true },
+  },
 } satisfies Prisma.ArticleSelect;
 
 /** Only genuinely-published articles are exposed publicly. */

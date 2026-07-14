@@ -4,7 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 /**
  * Authenticate machine-to-machine requests (cron jobs, webhooks). These are
  * exempt from CSRF/Origin checks — they have no browser Origin — and instead
- * present a shared secret via `Authorization: Bearer <secret>` or `?secret=`.
+ * present a shared secret via `Authorization: Bearer <secret>`.
  * Compared in constant time to avoid timing attacks.
  */
 function safeEqual(a: string, b: string): boolean {
@@ -21,7 +21,7 @@ export function isValidCronRequest(req: Request): boolean {
 
   const auth = req.headers.get("authorization");
   const bearer = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  const url = new URL(req.url);
-  const provided = bearer ?? url.searchParams.get("secret") ?? "";
+  // Query-string secrets leak into logs, history and referrers.
+  const provided = bearer ?? "";
   return provided.length > 0 && safeEqual(provided, secret);
 }

@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   CONTENT_TYPES,
-  ARTICLE_STATUSES,
   FACT_CHECK_STATUSES,
   ARTICLE_SOURCE_STATUSES,
 } from "@/lib/content-enums";
@@ -27,7 +26,8 @@ export const createArticleSchema = z.object({
   bodyJson: z.any().optional(),
 
   contentType: z.enum(CONTENT_TYPES).default("NEWS"),
-  status: z.enum(ARTICLE_STATUSES).default("DRAFT"),
+  // New articles always enter the central workflow as drafts.
+  status: z.literal("DRAFT").default("DRAFT"),
 
   primaryCategoryId: optionalCuid,
   authorId: optionalCuid, // defaults to the acting user when omitted
@@ -70,5 +70,8 @@ export const createArticleSchema = z.object({
 export type CreateArticleInput = z.infer<typeof createArticleSchema>;
 
 /** Update schema: everything optional; slug can be omitted to keep the current. */
-export const updateArticleSchema = createArticleSchema.partial();
+export const updateArticleSchema = createArticleSchema
+  .omit({ status: true })
+  .partial()
+  .extend({ version: z.number().int().nonnegative() });
 export type UpdateArticleInput = z.infer<typeof updateArticleSchema>;
