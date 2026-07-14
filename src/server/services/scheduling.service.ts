@@ -34,6 +34,10 @@ export const schedulingService = {
             await tx.publishJobLog.create({ data: { articleId: article.id, jobType: "scheduled_publish", status: "SKIPPED", detail: "already claimed" } });
             return "SKIPPED" as const;
           }
+          // TODO(editorial): introduce a dedicated SYSTEM_ACTOR principal and
+          // attribute automated workflow events to it once the actor model can
+          // represent non-human principals. Until then, retain the responsible
+          // editor/author fallback required by the non-null actorId relation.
           const actorId = article.assignedEditorId ?? article.authorId;
           await tx.articleWorkflowEvent.create({
             data: { articleId: article.id, fromStatus: "SCHEDULED", toStatus: "PUBLISHED", actorId, note: "انتشار خودکار زمان‌بندی‌شده" },
