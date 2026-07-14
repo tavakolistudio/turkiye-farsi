@@ -55,7 +55,7 @@ test.describe("Content CRUD (admin)", () => {
     await page.goto("/admin/articles/new");
     await page.getByLabel("عنوان", { exact: true }).fill(title);
     await page.getByLabel("دسته‌بندی اصلی").selectOption({ label: catName });
-    await page.getByLabel(/^متن/).fill("پاراگراف نمونه برای تست E2E.");
+    await page.locator(".tiptap").fill("پاراگراف نمونه برای تست E2E.");
     await page.getByRole("button", { name: "ذخیره" }).click();
     await expect(page).toHaveURL(/\/admin\/articles$/);
     await expect(page.getByText(title)).toBeVisible();
