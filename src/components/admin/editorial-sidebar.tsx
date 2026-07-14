@@ -47,7 +47,11 @@ export function EditorialSidebar({ article, actions, editors, checklist, revisio
   const [scheduledAt, setScheduledAt] = useState("");
   const [correctionTitle, setCorrectionTitle] = useState("");
   const [correctionBody, setCorrectionBody] = useState("");
+  const [correctionType, setCorrectionType] = useState("MINOR");
   const [commentBody, setCommentBody] = useState("");
+  const [compareFrom, setCompareFrom] = useState(revisions[1]?.id ?? "");
+  const [compareTo, setCompareTo] = useState(revisions[0]?.id ?? "");
+  const [comparison, setComparison] = useState<{ field: string; before: unknown; after: unknown }[]>([]);
 
   const run = async (work: () => Promise<unknown>) => {
     setBusy(true); setMessage("");
@@ -100,6 +104,16 @@ export function EditorialSidebar({ article, actions, editors, checklist, revisio
 
       <details className="rounded-lg border border-border bg-card p-4" open>
         <summary className="cursor-pointer font-bold">نسخه‌ها ({revisions.length})</summary>
+        {revisions.length >= 2 && <div className="mt-3 grid gap-2">
+          <Select aria-label="نسخه مبدا مقایسه" value={compareFrom} onChange={(event) => setCompareFrom(event.target.value)}>{revisions.map((revision) => <option key={revision.id} value={revision.id}>نسخه {revision.versionNumber}</option>)}</Select>
+          <Select aria-label="نسخه مقصد مقایسه" value={compareTo} onChange={(event) => setCompareTo(event.target.value)}>{revisions.map((revision) => <option key={revision.id} value={revision.id}>نسخه {revision.versionNumber}</option>)}</Select>
+          <Button type="button" size="sm" variant="outline" disabled={busy || compareFrom === compareTo} onClick={() => void run(async () => {
+            const result = await api(`/api/v1/admin/articles/${article.id}/revisions?from=${encodeURIComponent(compareFrom)}&to=${encodeURIComponent(compareTo)}`, "GET") as { changes: { field: string; before: unknown; after: unknown }[] };
+            setComparison(result.changes);
+          })}>مقایسهٔ دو نسخه</Button>
+          {comparison.length > 0 && <div className="max-h-72 space-y-2 overflow-auto rounded border bg-muted/30 p-2 text-xs">{comparison.map((change, index) => <div key={`${change.field}-${index}`}><p className="font-bold">{change.field}</p><p className="text-red-700">قبل: {String(change.before ?? "—")}</p><p className="text-emerald-700">بعد: {String(change.after ?? "—")}</p></div>)}</div>}
+          {comparison.length === 0 && <p className="text-xs text-muted-foreground">برای دیدن تفاوت‌ها دو نسخه را انتخاب کنید.</p>}
+        </div>}
         <div className="mt-3 space-y-2">
           {revisions.map((revision) => <div key={revision.id} className="rounded border p-2 text-xs">
             <p>نسخه {revision.versionNumber} — {revision.changedBy.name}</p>
@@ -120,13 +134,14 @@ export function EditorialSidebar({ article, actions, editors, checklist, revisio
           {corrections.map((correction) => <div key={correction.id} className="rounded border p-2 text-xs"><p className="font-bold">{correction.title}</p><p>{correction.description}</p>{!correction.isPublished && <Button className="mt-2" size="sm" type="button" disabled={busy} onClick={() => void run(() => api(`/api/v1/admin/articles/${article.id}/corrections/${correction.id}/publish`, "POST"))}>انتشار اصلاحیه</Button>}</div>)}
           <Input placeholder="عنوان اصلاحیه" value={correctionTitle} onChange={(e) => setCorrectionTitle(e.target.value)} />
           <Textarea placeholder="شرح اصلاحیه" value={correctionBody} onChange={(e) => setCorrectionBody(e.target.value)} />
-          <Button type="button" size="sm" disabled={busy} onClick={() => void run(async () => { await api(`/api/v1/admin/articles/${article.id}/corrections`, "POST", { title: correctionTitle, description: correctionBody, correctionType: "MINOR", order: corrections.length }); setCorrectionTitle(""); setCorrectionBody(""); })}>ثبت اصلاحیه</Button>
+          <Select aria-label="نوع اصلاحیه" value={correctionType} onChange={(event) => setCorrectionType(event.target.value)}><option value="MINOR">جزئی</option><option value="MAJOR">عمده</option><option value="FACTUAL">واقعی/اطلاعاتی</option><option value="LEGAL">حقوقی</option><option value="SOURCE_UPDATE">به‌روزرسانی منبع</option></Select>
+          <Button type="button" size="sm" disabled={busy} onClick={() => void run(async () => { await api(`/api/v1/admin/articles/${article.id}/corrections`, "POST", { title: correctionTitle, description: correctionBody, correctionType, order: corrections.length }); setCorrectionTitle(""); setCorrectionBody(""); })}>ثبت اصلاحیه</Button>
         </div>
       </details>
 
       <details className="rounded-lg border border-border bg-card p-4">
         <summary className="cursor-pointer font-bold">نظرات تحریریه ({comments.length})</summary>
-        <div className="mt-3 space-y-2 text-xs">{comments.map((comment) => <div key={comment.id} className="rounded border p-2"><p><strong>{comment.author.name}:</strong> {comment.body}</p>{comment.replies.map((reply) => <p key={reply.id} className="mr-3 text-muted-foreground">↳ {reply.author.name}: {reply.body}</p>)}</div>)}</div>
+        <div className="mt-3 space-y-2 text-xs">{comments.map((comment) => <div key={comment.id} className="rounded border p-2"><p><strong>{comment.author.name}:</strong> {comment.body}</p>{comment.replies.map((reply) => <p key={reply.id} className="mr-3 text-muted-foreground">↳ {reply.author.name}: {reply.body}</p>)}<Button className="mt-2" type="button" size="sm" variant="outline" disabled={busy || comment.isResolved} onClick={() => void run(() => api(`/api/v1/admin/articles/${article.id}/comments/${comment.id}`, "PATCH", { isResolved: true }))}>{comment.isResolved ? "حل‌شده" : "حل کردن"}</Button></div>)}</div>
         <Textarea className="mt-3" placeholder="نظر داخلی تحریریه" value={commentBody} onChange={(e) => setCommentBody(e.target.value)} />
         <Button className="mt-2" type="button" size="sm" disabled={busy} onClick={() => void run(async () => { await api(`/api/v1/admin/articles/${article.id}/comments`, "POST", { body: commentBody }); setCommentBody(""); })}>ثبت نظر</Button>
       </details>
