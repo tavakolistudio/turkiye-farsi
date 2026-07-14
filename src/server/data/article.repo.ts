@@ -48,6 +48,29 @@ export const publicArticleSelect = {
   },
 } satisfies Prisma.ArticleSelect;
 
+/**
+ * Lightweight selection for cards/lists — deliberately omits the heavy
+ * `bodyJson` and editorial long-form fields so list pages stay fast and never
+ * ship the full article body. Still 100% public-safe.
+ */
+export const publicCardSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  subtitle: true,
+  summary: true,
+  contentType: true,
+  readingTime: true,
+  publishedAt: true,
+  viewCount: true,
+  isBreaking: true,
+  author: { select: { name: true, profile: { select: { slug: true, displayName: true, isPublic: true } } } },
+  primaryCategory: { select: { name: true, slug: true } },
+  featuredImage: { select: { publicUrl: true, alt: true } },
+} satisfies Prisma.ArticleSelect;
+
+export type PublicCard = Prisma.ArticleGetPayload<{ select: typeof publicCardSelect }>;
+
 /** Only genuinely-published articles are exposed publicly. */
 export function publishedWhere(extra: Prisma.ArticleWhereInput = {}): Prisma.ArticleWhereInput {
   return {
@@ -136,5 +159,97 @@ export const articleRepo = {
       take,
       select: publicArticleSelect,
     });
+  },
+
+  // ── Card lists (no bodyJson) ─────────────────────────────
+  async listCards(args: {
+    where?: Prisma.ArticleWhereInput;
+    orderBy?: Prisma.ArticleOrderByWithRelationInput | Prisma.ArticleOrderByWithRelationInput[];
+    skip?: number;
+    take: number;
+  }) {
+    const where = publishedWhere(args.where ?? {});
+    const [rows, total] = await Promise.all([
+      prisma.article.findMany({
+        where,
+        orderBy: args.orderBy ?? { publishedAt: "desc" },
+        skip: args.skip ?? 0,
+        take: args.take,
+        select: publicCardSelect,
+      }),
+      prisma.article.count({ where }),
+    ]);
+    return { rows, total };
+  },
+
+  cards(where: Prisma.ArticleWhereInput, take: number, orderBy?: Prisma.ArticleOrderByWithRelationInput) {
+    return prisma.article.findMany({
+      where: publishedWhere(where),
+      orderBy: orderBy ?? { publishedAt: "desc" },
+      take,
+      select: publicCardSelect,
+    });
+  },
+
+  /**
+   * Related cards ranked by shared tags then primary category, falling back to
+   * recency — all in a single query set (no N+1), excluding the current article.
+   */
+  async relatedCards(
+    articleId: string,
+    primaryCategoryId: string | null,
+    tagIds: string[],
+    take: number,
+  ) {
+    const seen = new Set<string>();
+    const out: PublicCard[] = [];
+    const push = (rows: PublicCard[]) => {
+      for (const r of rows) {
+        if (r.id === articleId || seen.has(r.id)) continue;
+        seen.add(r.id);
+        out.push(r);
+        if (out.length >= take) break;
+      }
+    };
+
+    if (tagIds.length) {
+      push(
+        await prisma.article.findMany({
+          where: publishedWhere({ id: { not: articleId }, tags: { some: { tagId: { in: tagIds } } } }),
+          orderBy: { publishedAt: "desc" },
+          take: take * 2,
+          select: publicCardSelect,
+        }),
+      );
+    }
+    if (out.length < take && primaryCategoryId) {
+      push(await this.cards({ id: { not: articleId }, primaryCategoryId }, take * 2));
+    }
+    if (out.length < take) {
+      push(await this.cards({ id: { not: articleId } }, take * 2));
+    }
+    return out.slice(0, take);
+  },
+
+  /** Adjacent published articles by publish time, for prev/next navigation. */
+  async prevNext(publishedAt: Date, articleId: string) {
+    const [previous, next] = await Promise.all([
+      prisma.article.findFirst({
+        where: publishedWhere({ id: { not: articleId }, publishedAt: { lt: publishedAt } }),
+        orderBy: { publishedAt: "desc" },
+        select: { title: true, slug: true },
+      }),
+      prisma.article.findFirst({
+        where: publishedWhere({ id: { not: articleId }, publishedAt: { gt: publishedAt, lte: new Date() } }),
+        orderBy: { publishedAt: "asc" },
+        select: { title: true, slug: true },
+      }),
+    ]);
+    return { previous, next };
+  },
+
+  /** Best-effort view increment; callers ignore failures so tracking never breaks a page. */
+  incrementViewCount(articleId: string) {
+    return prisma.article.update({ where: { id: articleId }, data: { viewCount: { increment: 1 } } });
   },
 };
