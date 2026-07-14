@@ -9,7 +9,7 @@ const CONTAINER_NODES = new Set([
 ]);
 const LEAF_NODES = new Set([
   "text", "hardBreak", "horizontalRule", "image", "gallery", "video", "relatedArticle",
-  "advertisement", "fileAttachment",
+  "advertisement", "fileAttachment", "youtube", "instagram",
 ]);
 const MARKS = new Set(["bold", "italic", "strike", "code", "link"]);
 const MAX_NODES = 5_000;
@@ -35,6 +35,46 @@ export function safeContentUrl(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Allowlisted embed hosts. Anything else is rejected outright. */
+const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"]);
+const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
+
+/** Extract a YouTube video id from a watch/short/embed URL (allowlist only). */
+export function parseYouTubeId(value: unknown): string | undefined {
+  const raw = cleanText(value, 2_000)?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+    if (!YOUTUBE_HOSTS.has(url.hostname)) return undefined;
+    let id: string | null = null;
+    if (url.hostname.endsWith("youtu.be")) id = url.pathname.slice(1);
+    else if (url.pathname === "/watch") id = url.searchParams.get("v");
+    else if (url.pathname.startsWith("/embed/")) id = url.pathname.split("/")[2] ?? null;
+    else if (url.pathname.startsWith("/shorts/")) id = url.pathname.split("/")[2] ?? null;
+    if (id && /^[a-zA-Z0-9_-]{6,20}$/.test(id)) return id;
+  } catch {
+    /* fall through */
+  }
+  return undefined;
+}
+
+/** Extract an Instagram post/reel/tv shortcode (allowlist only). */
+export function parseInstagramShortcode(value: unknown): string | undefined {
+  const raw = cleanText(value, 2_000)?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return undefined;
+    if (!INSTAGRAM_HOSTS.has(url.hostname)) return undefined;
+    const m = url.pathname.match(/^\/(?:p|reel|tv)\/([a-zA-Z0-9_-]{1,30})/);
+    if (m) return m[1];
+  } catch {
+    /* fall through */
+  }
+  return undefined;
 }
 
 function sanitizeAttrs(type: string, attrs: unknown): JsonRecord | undefined {
@@ -72,6 +112,20 @@ function sanitizeAttrs(type: string, attrs: unknown): JsonRecord | undefined {
     const placement = cleanText(a.placement, 100);
     if (!placement) return undefined;
     out.placement = placement;
+  }
+  if (type === "youtube") {
+    const videoId = parseYouTubeId(a.src) ?? parseYouTubeId(a.url);
+    if (!videoId) return undefined;
+    out.videoId = videoId;
+    const title = cleanText(a.title, 300);
+    if (title) out.title = title;
+  }
+  if (type === "instagram") {
+    const shortcode = parseInstagramShortcode(a.src) ?? parseInstagramShortcode(a.url);
+    if (!shortcode) return undefined;
+    out.shortcode = shortcode;
+    const title = cleanText(a.title, 300);
+    if (title) out.title = title;
   }
   if (type === "fileAttachment") {
     const url = safeContentUrl(a.url);
@@ -115,7 +169,10 @@ export function sanitizeBodyJson(value: unknown): Prisma.InputJsonValue {
       return { type, text, ...(marks ? { marks } : {}) };
     }
     const attrs = sanitizeAttrs(type, input.attrs);
-    if (["image", "gallery", "video", "relatedArticle", "advertisement", "fileAttachment"].includes(type) && !attrs) {
+    if (
+      ["image", "gallery", "video", "relatedArticle", "advertisement", "fileAttachment", "youtube", "instagram"].includes(type) &&
+      !attrs
+    ) {
       return null;
     }
     const content = Array.isArray(input.content)
