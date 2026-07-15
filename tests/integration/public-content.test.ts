@@ -20,7 +20,7 @@ describe("public content integration", () => {
 
   afterAll(async () => {
     await prisma.pageView.deleteMany({ where: { path: viewPath } });
-    await prisma.searchLog.deleteMany({ where: { query: published.title.slice(0, 4) } });
+    await prisma.searchLog.deleteMany({ where: { query: published.title.slice(0, 4).trim() } });
     if (draftId) await prisma.article.delete({ where: { id: draftId } });
   });
 
@@ -46,7 +46,10 @@ describe("public content integration", () => {
   });
 
   it("searches public fields and records the query", async () => {
-    const q = published.title.slice(0, 4);
+    // The service trims the term and stores the trimmed value in SearchLog,
+    // so trim here too (a title whose 4th char is a space would otherwise
+    // make the count lookup miss).
+    const q = published.title.slice(0, 4).trim();
     const result = await publicContentService.search({ q, page: 1, pageSize: 20, sort: "relevance" });
     expect(result.rows.some((item) => item.id === published.id)).toBe(true);
     await expect(prisma.searchLog.count({ where: { query: q } })).resolves.toBeGreaterThan(0);
