@@ -30,6 +30,28 @@ function doc(paragraphs: string[]) {
   };
 }
 
+/**
+ * Build a richer TipTap document from a list of blocks. Supports headings and
+ * paragraphs — enough for institutional/static pages without a page builder.
+ */
+type Block =
+  | { h: string; level?: 2 | 3 }
+  | { p: string };
+function richDoc(blocks: Block[]) {
+  return {
+    type: "doc",
+    content: blocks.map((b) =>
+      "h" in b
+        ? {
+            type: "heading",
+            attrs: { level: b.level ?? 2 },
+            content: [{ type: "text", text: b.h }],
+          }
+        : { type: "paragraph", content: [{ type: "text", text: b.p }] },
+    ),
+  };
+}
+
 const CATEGORIES = [
   "اخبار ترکیه",
   "اخبار ایران",
@@ -228,8 +250,10 @@ async function seedSampleContent(
           filename: m.storagePath.split("/").pop()!,
           originalFilename: m.originalFilename,
           storagePath: m.storagePath,
-          publicUrl: `/${m.storagePath}`,
-          mimeType: "image/jpeg",
+          // Point at a committed placeholder asset so dev/demo seed data never
+          // renders a broken image (real uploads live in Storage in prod).
+          publicUrl: "/images/news-placeholder.svg",
+          mimeType: "image/svg+xml",
           size: 120_000,
           width: 1200,
           height: 675,
@@ -389,6 +413,119 @@ async function seedSampleContent(
   }
 }
 
+/**
+ * Base institutional pages. Idempotent (upsert on slug) and re-run safe: we
+ * only create a page when its slug is missing and never overwrite edits an
+ * admin may have made. No contact details are fabricated — real phone/address
+ * live in SiteSetting and are managed by the admin.
+ */
+async function seedStaticPages() {
+  const pages: {
+    slug: string;
+    title: string;
+    metaDescription: string;
+    blocks: Block[];
+  }[] = [
+    {
+      slug: "about",
+      title: "درباره ما",
+      metaDescription: "درباره ترکیه فارسی؛ رسانه خبری و راهنمای زندگی برای فارسی‌زبانان ساکن ترکیه.",
+      blocks: [
+        { p: "ترکیه فارسی یک رسانه خبری و آموزشی مستقل فارسی‌زبان است که به‌طور ویژه برای ایرانیان و فارسی‌زبانان ساکن ترکیه یا علاقه‌مند به این کشور تولید محتوا می‌کند." },
+        { h: "مأموریت ما" },
+        { p: "هدف ما ارائه اطلاعات دقیق، به‌روز و قابل‌اعتماد درباره اقامت، مهاجرت، قوانین، اقتصاد، آموزش و زندگی روزمره در ترکیه است تا مخاطبان بتوانند تصمیم‌های آگاهانه بگیرند." },
+        { h: "اصول تحریریه" },
+        { p: "ما به صحت‌سنجی اخبار، ذکر منابع معتبر و شفافیت در اصلاح خطاها متعهد هستیم. هر خبر پیش از انتشار از مسیر بازبینی تحریریه عبور می‌کند." },
+      ],
+    },
+    {
+      slug: "contact",
+      title: "تماس با ما",
+      metaDescription: "راه‌های ارتباط با تحریریه ترکیه فارسی.",
+      blocks: [
+        { p: "برای ارتباط با تحریریه ترکیه فارسی می‌توانید از راه‌های اعلام‌شده در این صفحه استفاده کنید. تیم ما در سریع‌ترین زمان ممکن پاسخگو خواهد بود." },
+        { h: "پیام به تحریریه" },
+        { p: "پیشنهادها، انتقادها و سرنخ‌های خبری خود را از طریق نشانی ایمیل رسمی که در بخش تنظیمات سایت اعلام شده است ارسال کنید. اطلاعات تماس رسمی توسط مدیر سایت مدیریت و به‌روزرسانی می‌شود." },
+        { h: "گزارش خطا در اخبار" },
+        { p: "اگر در یکی از مطالب خطایی مشاهده کردید، از دکمه «گزارش خطا» در انتهای همان مطلب استفاده کنید تا سریع‌تر بررسی شود." },
+      ],
+    },
+    {
+      slug: "advertising",
+      title: "تبلیغات",
+      metaDescription: "فرصت‌های تبلیغات و اطلاع‌رسانی در ترکیه فارسی.",
+      blocks: [
+        { p: "ترکیه فارسی با مخاطبان هدفمند فارسی‌زبان در ترکیه، بستری مناسب برای معرفی کسب‌وکارها و خدمات مرتبط با اقامت، مهاجرت، املاک، آموزش و گردشگری است." },
+        { h: "همکاری تبلیغاتی" },
+        { p: "برای دریافت تعرفه‌ها و جایگاه‌های تبلیغاتی، از طریق راه‌های ارتباطی اعلام‌شده در صفحه «تماس با ما» با ما در ارتباط باشید." },
+      ],
+    },
+    {
+      slug: "cooperation",
+      title: "همکاری با ما",
+      metaDescription: "فرصت‌های همکاری و مشارکت با تیم ترکیه فارسی.",
+      blocks: [
+        { p: "ما از همکاری نویسندگان، مترجمان و کارشناسان حوزه‌های اقامت، حقوق، اقتصاد و مهاجرت استقبال می‌کنیم." },
+        { h: "همکاری به‌عنوان نویسنده" },
+        { p: "اگر تجربه یا تخصصی در موضوعات مرتبط با زندگی در ترکیه دارید، می‌توانید از طریق صفحه «تماس با ما» رزومه و نمونه‌کارهای خود را ارسال کنید." },
+      ],
+    },
+    {
+      slug: "privacy",
+      title: "سیاست حریم خصوصی",
+      metaDescription: "سیاست حفظ حریم خصوصی کاربران در ترکیه فارسی.",
+      blocks: [
+        { p: "حفظ حریم خصوصی کاربران برای ما اهمیت دارد. این صفحه توضیح می‌دهد چه داده‌هایی جمع‌آوری و چگونه از آن‌ها استفاده می‌شود." },
+        { h: "داده‌هایی که جمع‌آوری می‌کنیم" },
+        { p: "ما تنها داده‌های ضروری برای بهبود تجربه کاربری، مانند آمار بازدید غیرشخصی صفحات را جمع‌آوری می‌کنیم و از ذخیره اطلاعات شخصی غیرضروری خودداری می‌کنیم." },
+        { h: "خبرنامه" },
+        { p: "در صورت عضویت در خبرنامه، نشانی ایمیل شما تنها برای ارسال مطالب استفاده می‌شود و در هر زمان می‌توانید اشتراک خود را لغو کنید." },
+      ],
+    },
+    {
+      slug: "terms",
+      title: "قوانین و مقررات",
+      metaDescription: "شرایط و قوانین استفاده از وب‌سایت ترکیه فارسی.",
+      blocks: [
+        { p: "استفاده از وب‌سایت ترکیه فارسی به‌منزله پذیرش قوانین و مقررات این صفحه است." },
+        { h: "مسئولیت محتوا" },
+        { p: "محتوای این وب‌سایت با هدف اطلاع‌رسانی عمومی تهیه می‌شود و جایگزین مشاوره حقوقی یا رسمی نیست. پیش از هر تصمیم مهم، اطلاعات را از منابع رسمی نیز راستی‌آزمایی کنید." },
+        { h: "مالکیت معنوی" },
+        { p: "بازنشر محتوای این وب‌سایت تنها با ذکر منبع و لینک به مطلب اصلی مجاز است." },
+      ],
+    },
+    {
+      slug: "corrections-policy",
+      title: "سیاست اصلاح اخبار",
+      metaDescription: "رویه ترکیه فارسی برای اصلاح خطاها و شفافیت خبری.",
+      blocks: [
+        { p: "ترکیه فارسی به شفافیت و صحت اطلاعات متعهد است. در صورت بروز خطا، آن را به‌روشنی اصلاح و به کاربران اطلاع‌رسانی می‌کنیم." },
+        { h: "چگونه خطاها را اصلاح می‌کنیم" },
+        { p: "پس از تأیید خطا، اصلاحیه به‌همراه توضیح در انتهای مطلب مربوط درج می‌شود تا سابقه تغییر برای مخاطب روشن باشد." },
+        { h: "گزارش خطا" },
+        { p: "کاربران می‌توانند از دکمه «گزارش خطا» در هر مطلب برای اعلام اشکال استفاده کنند." },
+      ],
+    },
+  ];
+
+  for (const page of pages) {
+    const body = richDoc(page.blocks);
+    await prisma.staticPage.upsert({
+      where: { slug: page.slug },
+      // Do not clobber admin edits on re-seed; only keep it published.
+      update: { isPublished: true },
+      create: {
+        slug: page.slug,
+        title: page.title,
+        bodyJson: body,
+        metaTitle: page.title,
+        metaDescription: page.metaDescription,
+        isPublished: true,
+      },
+    });
+  }
+}
+
 async function main() {
   console.log("→ Seeding permissions and roles ...");
   await seedPermissionsAndRoles();
@@ -475,6 +612,9 @@ async function main() {
       });
     }
   }
+
+  console.log("→ Seeding static pages ...");
+  await seedStaticPages();
 
   console.log("→ Seeding site settings ...");
   const settings: Record<string, Prisma.InputJsonValue> = {
