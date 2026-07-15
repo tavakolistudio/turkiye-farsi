@@ -79,13 +79,16 @@ ensures a fresh Prisma Client on every build). To go live:
    `tavakolistudio/turkiye-farsi`. Framework: Next.js (auto). Production branch:
    `main` (auto-deploy on push).
 2. **Set Environment Variables** (Production scope) — see the table below.
-3. **Deploy**. Vercel runs `npm install` (→ `prisma generate`) then `next build`.
-4. **Run migrations against the production DB** (once, from a trusted machine
-   with the production `DATABASE_URL`/`DIRECT_URL`):
-   ```
-   npx prisma migrate deploy
-   ```
-   This applies all migrations, including `20260715000000_enable_rls_public_tables`.
+3. **Deploy**. Vercel runs `npm install` (→ `postinstall: prisma generate`) then
+   the `vercel-build` script: **`prisma migrate deploy && tsx prisma/seed.ts &&
+   next build`**. So migrations (including `20260715000000_enable_rls_public_tables`)
+   and idempotent base-data provisioning (roles, permissions, super-admin from
+   `INITIAL_ADMIN_*`, categories, static pages, settings — demo content is skipped
+   in production) run automatically on every deploy. `DATABASE_URL`/`DIRECT_URL`
+   must be set in the Production scope for this to succeed.
+4. *(Optional, manual)* You can still run `npx prisma migrate deploy` yourself
+   from a trusted machine with the production connection strings if you prefer
+   not to migrate during the build.
 5. **Verify RLS**: in an authorized Supabase session, run `get_advisors` and
    confirm the "RLS disabled in public" advisor is cleared. Ensure the app's DB
    role is `postgres`/owner (bypasses RLS) — the pooled Supabase connection uses
