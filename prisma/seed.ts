@@ -140,7 +140,14 @@ async function seedUser(opts: {
     create: { email: opts.email, name: opts.name, passwordHash },
   });
 
-  const slug = slugify(opts.name) || user.id;
+  // Profile slug comes from the display name, but Profile.slug is globally
+  // unique — two different users with the same name (e.g. an old and a new
+  // admin both named "مدیر ارشد") would collide. Fall back to a suffixed slug.
+  let slug = slugify(opts.name) || user.id;
+  const slugOwner = await prisma.profile.findUnique({ where: { slug } });
+  if (slugOwner && slugOwner.userId !== user.id) {
+    slug = `${slug}-${user.id.slice(-6)}`;
+  }
   await prisma.profile.upsert({
     where: { userId: user.id },
     update: {},
@@ -639,6 +646,36 @@ async function main() {
       googleVerification: "",
     },
     maintenance: { enabled: false, title: "", message: "" },
+    "page:about": {
+      title: "درباره ترکیه فارسی",
+      summary: "رسانه‌ای فارسی‌زبان برای پوشش خبرها و اطلاعات کاربردی زندگی در ترکیه.",
+      body: "ترکیه فارسی با تمرکز بر دقت، شفافیت منابع و نیازهای واقعی فارسی‌زبانان، خبرها و راهنماهای مرتبط با ترکیه را منتشر می‌کند.\n\nمطالب تحریریه بر پایه منابع مشخص تهیه می‌شوند و اصلاحیه‌های منتشرشده در همان صفحه خبر در دسترس هستند.",
+    },
+    "page:contact": {
+      title: "تماس با ما",
+      summary: "راه‌های تماس معتبر از تنظیمات سایت نمایش داده می‌شوند.",
+      body: "برای ارتباط با تحریریه، گزارش خطا یا پیشنهاد سوژه از اطلاعات تماس ثبت‌شده در تنظیمات رسمی سایت استفاده کنید. اطلاعات تماس ساختگی در این صفحه نمایش داده نمی‌شود.",
+    },
+    "page:advertising": {
+      title: "تبلیغات",
+      body: "درخواست‌های تبلیغاتی پس از بررسی تناسب با مخاطبان و سیاست استقلال تحریریه پذیرفته می‌شوند. انتشار تبلیغ به معنای تأیید تحریریه نیست و محتوای تبلیغاتی به‌روشنی مشخص خواهد شد.",
+    },
+    "page:cooperation": {
+      title: "همکاری با ما",
+      body: "ترکیه فارسی از پیشنهاد همکاری نویسندگان، خبرنگاران، مترجمان و متخصصان حوزه‌های مرتبط استقبال می‌کند. اطلاعات تماس و مسیر ارسال درخواست از تنظیمات رسمی سایت اعلام می‌شود.",
+    },
+    "page:privacy": {
+      title: "حریم خصوصی",
+      body: "ترکیه فارسی فقط داده‌های ضروری برای ارائه و بهبود خدمات را پردازش می‌کند. شمارش بازدید با شناسه چرخشی و بدون ذخیره اطلاعات شخصی غیرضروری انجام می‌شود.\n\nاطلاعات کاربران برای مقاصد نامرتبط فروخته نمی‌شود و دسترسی مدیریتی به داده‌ها محدود است.",
+    },
+    "page:terms": {
+      title: "شرایط استفاده",
+      body: "استفاده از محتوای سایت باید با رعایت حقوق نشر، ذکر منبع و قوانین قابل اجرا انجام شود. کاربران نباید از خدمات برای فعالیت غیرقانونی، ایجاد اختلال یا تلاش برای دسترسی غیرمجاز استفاده کنند.",
+    },
+    "page:corrections-policy": {
+      title: "سیاست اصلاحیه",
+      body: "اگر خطای معناداری در یک مطلب تأیید شود، اصلاحیه‌ای مستقل از تاریخچه ویرایش در همان صفحه خبر منتشر می‌شود. اصلاحیه شامل شرح تغییر و زمان انتشار است و ترتیب آن حفظ می‌شود.\n\nگزارش‌های خطا بررسی می‌شوند و تغییرات پنهان جایگزین اطلاع‌رسانی شفاف نخواهند شد.",
+    },
   };
   for (const [key, value] of Object.entries(settings)) {
     await prisma.siteSetting.upsert({
@@ -653,7 +690,7 @@ async function main() {
   });
 
   console.log("\n✓ Seed complete.");
-  console.log(`  Super admin: ${adminEmail}`);
+  console.log("  Super admin: created/updated from INITIAL_ADMIN_EMAIL (not logged).");
 }
 
 main()

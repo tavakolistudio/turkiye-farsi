@@ -15,29 +15,45 @@ export const adminArticleInclude = {
 } satisfies Prisma.ArticleInclude;
 
 /** Public-safe selection: no internal/editorial/scheduling fields leak. */
-export const publicArticleSelect = {
+export const publicArticleCardSelect = {
   id: true,
   title: true,
   slug: true,
   subtitle: true,
   summary: true,
-  bodyJson: true,
   contentType: true,
+  isBreaking: true,
   readingTime: true,
   publishedAt: true,
   updatedAt: true,
   viewCount: true,
+  author: { select: { name: true, profile: { select: { slug: true, displayName: true, avatarUrl: true } } } },
+  primaryCategory: { select: { name: true, slug: true } },
+  featuredImage: { select: { publicUrl: true, alt: true, caption: true, width: true, height: true } },
+  tags: { select: { tag: { select: { name: true, slug: true } } } },
+} satisfies Prisma.ArticleSelect;
+
+export const publicArticleSelect = {
+  ...publicArticleCardSelect,
+  bodyJson: true,
   whyItMatters: true,
   whoIsAffected: true,
   whatToDo: true,
   changeWarning: true,
   canonicalUrl: true,
   noindex: true,
-  author: { select: { name: true, profile: { select: { slug: true, displayName: true, avatarUrl: true } } } },
-  primaryCategory: { select: { name: true, slug: true } },
-  featuredImage: { select: { publicUrl: true, alt: true, caption: true } },
+  author: {
+    select: {
+      name: true,
+      profile: {
+        select: {
+          slug: true, displayName: true, avatarUrl: true, bio: true, expertise: true,
+          twitter: true, instagram: true, telegram: true, linkedin: true, website: true,
+        },
+      },
+    },
+  },
   categories: { select: { category: { select: { name: true, slug: true } }, isPrimary: true } },
-  tags: { select: { tag: { select: { name: true, slug: true } } } },
   sources: {
     select: { sourceUrl: true, sourceTitle: true, isPrimary: true, source: { select: { name: true, slug: true } } },
   },
@@ -134,7 +150,7 @@ export const articleRepo = {
         orderBy: { publishedAt: "desc" },
         skip: args.skip,
         take: args.take,
-        select: publicArticleSelect,
+        select: publicArticleCardSelect,
       }),
       prisma.article.count({ where: publishedWhere(args.where) }),
     ]);
@@ -157,7 +173,7 @@ export const articleRepo = {
       }),
       orderBy: { publishedAt: "desc" },
       take,
-      select: publicArticleSelect,
+      select: publicArticleCardSelect,
     });
   },
 

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Remote-agent workspace artifacts (full repo copies, not project code).
+    ".remote-worktree/**",
+    ".remote-fetch/**",
   ]),
 ]);
 
