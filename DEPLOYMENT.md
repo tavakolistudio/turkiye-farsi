@@ -40,6 +40,12 @@ See `.env.example` for the full list (DB, Supabase, email, secrets).
 
 - Run `prisma migrate deploy` on the production database (never `migrate reset`).
 - Migrations are additive and must not be edited/removed once shipped.
+- `vercel-build` runs `prisma migrate deploy && next build` — migrations apply
+  automatically on deploy, **but the seed does not**. Seeding is a controlled,
+  manual operation: run `npm run db:seed` yourself (with `NODE_ENV=production`
+  and `INITIAL_ADMIN_*` set) after the first deploy or when the base data set
+  changes. This keeps deploys independent of admin credentials in the build
+  environment and avoids rewriting role/permission rows on every deploy.
 
 ## Caching
 
