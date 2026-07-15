@@ -52,3 +52,22 @@ Cross-cutting:
 `public/uploads`, dev only). Both implement `StorageAdapter { save, delete }`.
 Uploads are validated (MIME allowlist, size cap, safe filename, path-traversal
 guard) before any bytes are written.
+
+## SEO layer (Phase 7)
+
+SEO helpers live in `src/lib/seo/*` (URL/canonical builders, JSON-LD schema
+builders, XML/RSS/sitemap serializers, the `buildMetadata` helper) and are
+consumed by public pages (metadata + `JsonLd` component) and by dedicated XML
+Route Handlers:
+
+```
+app/robots.ts                      dynamic robots.txt (env-aware)
+app/sitemap.xml/route.ts           sitemap index
+app/sitemaps/[segment]/route.ts    per-type sitemaps (pages/categories/tags/authors/articles)
+app/news-sitemap.xml/route.ts      Google News sitemap (48h)
+app/rss.xml, app/rss/**            RSS feeds (all/latest/breaking/category)
+```
+
+Feed data comes from `seo-feed.service.ts` (published-only). Redirects are
+resolved in the Node runtime via `redirect.service.ts` + `server/seo/redirect-or-404.ts`
+(not edge middleware, which cannot use Prisma). See `SEO.md` for the full design.

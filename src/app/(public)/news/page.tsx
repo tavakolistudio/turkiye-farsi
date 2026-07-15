@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
+import { buildMetadata } from "@/lib/seo/metadata";
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/content-enums";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "همه اخبار",
   description: "همه اخبار و مطالب ترکیه فارسی با امکان فیلتر بر اساس دسته‌بندی و نوع محتوا.",
-  alternates: { canonical: routes.news() },
-};
+  path: routes.news(),
+});
 
 type Props = {
   searchParams: Promise<{ page?: string; category?: string; type?: string; sort?: string }>;

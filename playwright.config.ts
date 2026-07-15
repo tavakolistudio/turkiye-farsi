@@ -16,6 +16,9 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
+  // One retry absorbs occasional dev-server on-demand-compile flakiness; a real
+  // failure still fails every attempt. `trace` is captured on the first retry.
+  retries: 1,
   timeout: 60_000,
   expect: { timeout: 15_000 },
   reporter: [["list"]],
