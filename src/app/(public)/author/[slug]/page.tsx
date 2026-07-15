@@ -1,10 +1,14 @@
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { ApiError } from "@/lib/api/errors";
 import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
+import { JsonLd } from "@/components/seo/json-ld";
 import { routes } from "@/lib/public-links";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { absoluteUrl } from "@/lib/seo/urls";
+import { breadcrumbSchema, graph, personSchema } from "@/lib/seo/jsonld";
+import { redirectOrNotFound } from "@/server/seo/redirect-or-404";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -30,13 +34,21 @@ async function load(slug: string, page: number) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await load(slug, 1);
-  if (!data) return { title: "نویسنده یافت نشد" };
+  if (!data) return { title: "نویسنده یافت نشد", robots: { index: false, follow: false } };
   const name = data.profile.displayName ?? "نویسنده";
-  return {
+  return buildMetadata({
     title: name,
     description: data.profile.bio ?? `مطالب منتشرشده توسط ${name} در ترکیه فارسی.`,
-    alternates: { canonical: routes.author(data.profile.slug) },
-  };
+    path: routes.author(data.profile.slug),
+    image: data.profile.avatarUrl,
+  });
+}
+
+/** Public social profile URLs (absolute only) for Person.sameAs. */
+function authorSameAs(p: { website: string | null; twitter: string | null; instagram: string | null; telegram: string | null; linkedin: string | null }): string[] {
+  return [p.website, p.twitter, p.instagram, p.telegram, p.linkedin]
+    .map((v) => v?.trim())
+    .filter((v): v is string => !!v && /^https?:\/\//i.test(v));
 }
 
 const SOCIAL_LINKS: { key: keyof NonNullable<Awaited<ReturnType<typeof publicSiteService.author>>["profile"]>; label: string }[] = [
@@ -50,15 +62,30 @@ const SOCIAL_LINKS: { key: keyof NonNullable<Awaited<ReturnType<typeof publicSit
 export default async function AuthorPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const page = pageNum((await searchParams).page);
-  const data = await load(slug, page);
-  if (!data) notFound();
+  const data = (await load(slug, page)) ?? (await redirectOrNotFound(`/author/${decodeURIComponent(slug)}`));
 
   const { profile, rows, total } = data;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const name = profile.displayName ?? "نویسنده";
+  const authorUrl = absoluteUrl(routes.author(profile.slug))!;
+  const authorGraph = graph(
+    personSchema({
+      name,
+      url: authorUrl,
+      image: profile.avatarUrl,
+      description: profile.bio,
+      jobTitle: profile.expertise,
+      sameAs: authorSameAs(profile),
+    }),
+    breadcrumbSchema([
+      { name: "خانه", url: absoluteUrl("/")! },
+      { name, url: authorUrl },
+    ]),
+  );
 
   return (
     <div>
+      <JsonLd data={authorGraph} />
       <Breadcrumb items={[{ label: name }]} />
 
       <header className="mb-8 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start">

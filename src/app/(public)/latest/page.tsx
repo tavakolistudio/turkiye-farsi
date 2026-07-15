@@ -1,16 +1,16 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
 import { CategoryChip } from "@/components/public/article-meta";
 import { routes } from "@/lib/public-links";
+import { buildMetadata } from "@/lib/seo/metadata";
 import { formatJalali, toIso, toPersianDigits } from "@/lib/dates";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "آخرین اخبار",
   description: "جدیدترین اخبار و مطالب منتشرشده در ترکیه فارسی، به‌ترتیب زمان انتشار.",
-  alternates: { canonical: routes.latest() },
-};
+  path: routes.latest(),
+});
 
 type Props = { searchParams: Promise<{ page?: string }> };
 const PAGE_SIZE = 20;

@@ -1,15 +1,15 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { publicSiteService, type MostViewedWindow } from "@/server/services/public-site.service";
 import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "پربازدیدترین‌ها",
   description: "پربازدیدترین مطالب ترکیه فارسی در بازه‌های زمانی مختلف.",
-  alternates: { canonical: routes.mostViewed() },
-};
+  path: routes.mostViewed(),
+});
 
 const RANGES: { key: MostViewedWindow; label: string }[] = [
   { key: "today", label: "امروز" },

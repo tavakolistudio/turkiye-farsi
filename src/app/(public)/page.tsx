@@ -1,13 +1,17 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { ArticleCard } from "@/components/public/article-card";
 import { SectionHeading, EmptyState } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
+import { siteConfig } from "@/lib/site-config";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/" },
-};
+export const metadata = buildMetadata({
+  title: `${siteConfig.name} — اخبار و راهنمای ایرانیان ترکیه`,
+  absoluteTitle: true,
+  description: siteConfig.description,
+  path: "/",
+});
 
 export default async function HomePage() {
   const home = await publicSiteService.getHomepage();

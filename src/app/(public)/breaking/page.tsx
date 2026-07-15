@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "اخبار فوری",
   description: "مهم‌ترین و فوری‌ترین اخبار ترکیه فارسی.",
-  alternates: { canonical: routes.breaking() },
-};
+  path: routes.breaking(),
+});
 
 type Props = { searchParams: Promise<{ page?: string }> };
 const PAGE_SIZE = 12;

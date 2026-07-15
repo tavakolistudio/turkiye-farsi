@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import type { Metadata } from "next";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { searchService, searchQuerySchema } from "@/server/services/search.service";
 import { rateLimit } from "@/server/api/rate-limit";
@@ -7,13 +6,15 @@ import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
 import { toPersianDigits } from "@/lib/dates";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+// Search result pages are intentionally kept out of the index.
+export const metadata = buildMetadata({
   title: "جستجو",
   description: "جستجو در اخبار و مطالب ترکیه فارسی.",
-  alternates: { canonical: routes.search() },
-  robots: { index: false, follow: true },
-};
+  path: routes.search(),
+  noindex: true,
+});
 
 type Props = {
   searchParams: Promise<{ q?: string; page?: string; sort?: string; category?: string }>;

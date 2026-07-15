@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowRight, ArrowLeft } from "lucide-react";
 import { publicSiteService } from "@/server/services/public-site.service";
@@ -11,9 +10,15 @@ import { Byline, CategoryChip } from "@/components/public/article-meta";
 import { PostImage } from "@/components/public/post-image";
 import { ShareButtons } from "@/components/public/share-buttons";
 import { ViewTracker } from "@/components/public/view-tracker";
+import { JsonLd } from "@/components/seo/json-ld";
 import { routes } from "@/lib/public-links";
 import { siteConfig } from "@/lib/site-config";
 import { formatJalali, toIso, toPersianDigits } from "@/lib/dates";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { absoluteUrl, canonicalUrl, ogImageUrl } from "@/lib/seo/urls";
+import { breadcrumbSchema, graph, newsArticleSchema, type PersonInput } from "@/lib/seo/jsonld";
+import { siteSettingsService } from "@/server/services/site-settings.service";
+import { redirectOrNotFound } from "@/server/seo/redirect-or-404";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -26,27 +31,38 @@ async function load(slug: string) {
   }
 }
 
+/** Author as a schema.org Person, linking to the public author page when public. */
+function authorPerson(author: {
+  name: string;
+  profile?: { slug: string; displayName: string | null; avatarUrl: string | null } | null;
+}): PersonInput {
+  const p = author.profile;
+  return {
+    name: p?.displayName || author.name,
+    url: p?.slug ? absoluteUrl(routes.author(p.slug)) : undefined,
+    image: p?.avatarUrl ?? undefined,
+  };
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await load(slug);
-  if (!data) return { title: "مطلب یافت نشد" };
+  if (!data) return { title: "مطلب یافت نشد", robots: { index: false, follow: false } };
   const a = data.article;
-  const description = a.summary ?? a.subtitle ?? undefined;
-  return {
+  return buildMetadata({
     title: a.title,
-    description,
-    alternates: { canonical: a.canonicalUrl ?? routes.article(a.slug) },
-    robots: a.noindex ? { index: false, follow: true } : undefined,
-    openGraph: {
-      type: "article",
-      title: a.title,
-      description,
-      url: routes.article(a.slug),
-      images: a.featuredImage?.publicUrl ? [{ url: a.featuredImage.publicUrl }] : undefined,
-      publishedTime: a.publishedAt ? toIso(new Date(a.publishedAt)) : undefined,
-      modifiedTime: a.updatedAt ? toIso(new Date(a.updatedAt)) : undefined,
-    },
-  };
+    description: a.summary ?? a.subtitle ?? undefined,
+    // A stored canonicalUrl (syndication) wins; otherwise the article's own URL.
+    path: a.canonicalUrl ?? routes.article(a.slug),
+    image: a.featuredImage?.publicUrl,
+    noindex: a.noindex,
+    ogType: "article",
+    publishedTime: a.publishedAt ? toIso(new Date(a.publishedAt)) : undefined,
+    modifiedTime: a.updatedAt ? toIso(new Date(a.updatedAt)) : undefined,
+    authors: [a.author.profile?.displayName || a.author.name],
+    section: a.primaryCategory?.name,
+    tags: a.tags.map((t) => t.tag.name),
+  });
 }
 
 const CORRECTION_LABELS: Record<string, string> = {
@@ -58,8 +74,7 @@ const CORRECTION_LABELS: Record<string, string> = {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
-  const data = await load(slug);
-  if (!data) notFound();
+  const data = (await load(slug)) ?? (await redirectOrNotFound(`/news/${decodeURIComponent(slug)}`));
 
   const { article: a, related, previous, next } = data;
   const published = a.publishedAt ? new Date(a.publishedAt) : null;
@@ -71,8 +86,37 @@ export default async function ArticlePage({ params }: Props) {
     { label: "اکنون چه باید کرد؟", value: a.whatToDo },
   ].filter((b) => b.value);
 
+  // Structured data — only reachable for genuinely-published articles (load()
+  // returns null for anything else, which 404s above).
+  const publisher = await siteSettingsService.publisher();
+  const selfUrl = canonicalUrl(a.canonicalUrl ?? routes.article(a.slug));
+  const articleGraph = graph(
+    newsArticleSchema(
+      {
+        headline: a.title,
+        description: a.summary ?? a.subtitle ?? undefined,
+        url: selfUrl,
+        images: a.featuredImage?.publicUrl ? [ogImageUrl(a.featuredImage.publicUrl)] : [],
+        datePublished: published ? toIso(published) : toIso(new Date()),
+        dateModified: updated ? toIso(updated) : undefined,
+        author: authorPerson(a.author),
+        section: a.primaryCategory?.name,
+        keywords: a.tags.map((t) => t.tag.name),
+      },
+      publisher,
+    ),
+    breadcrumbSchema([
+      { name: "خانه", url: absoluteUrl("/")! },
+      ...(a.primaryCategory
+        ? [{ name: a.primaryCategory.name, url: absoluteUrl(routes.category(a.primaryCategory.slug))! }]
+        : []),
+      { name: a.title, url: selfUrl },
+    ]),
+  );
+
   return (
     <>
+      <JsonLd data={articleGraph} />
       <ViewTracker slug={a.slug} />
       <article className="mx-auto max-w-3xl">
         <Breadcrumb
