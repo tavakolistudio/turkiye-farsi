@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safePublicUrl } from "@/components/content/article-body";
+import { parseYouTubeId, safeContentUrl } from "@/lib/editorial/content";
 import { formatJalali } from "@/lib/dates";
 import { isBotUserAgent, isPublicArticle, relatedArticleScore, VIEW_DEDUPLICATION_MS } from "@/lib/public-content";
 import { searchSchema } from "@/lib/validations/public";
@@ -24,11 +24,12 @@ describe("public content rules", () => {
     expect(searchSchema.safeParse({ q: "ترکیه", from: "2026-08-01", to: "2026-07-01" }).success).toBe(false);
   });
 
-  it("blocks unsafe renderer URLs and unknown embed domains", () => {
-    expect(safePublicUrl("javascript:alert(1)")).toBeNull();
-    expect(safePublicUrl("data:text/html,<script>alert(1)</script>", "media")).toBeNull();
-    expect(safePublicUrl("https://evil.example/video", "embed")).toBeNull();
-    expect(safePublicUrl("https://www.youtube.com/watch?v=abc", "embed")).toContain("youtube.com");
+  it("blocks unsafe content URLs and unknown embed domains", () => {
+    // Sanitization is server-side now (sanitizeBodyJson); these are its URL guards.
+    expect(safeContentUrl("javascript:alert(1)")).toBeUndefined();
+    expect(safeContentUrl("data:text/html,<script>alert(1)</script>")).toBeUndefined();
+    expect(parseYouTubeId("https://evil.example/video")).toBeUndefined();
+    expect(parseYouTubeId("https://www.youtube.com/watch?v=abcdef")).toBe("abcdef");
   });
 
   it("filters bots and defines a stable deduplication window", () => {
