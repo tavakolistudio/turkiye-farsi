@@ -1,0 +1,5 @@
+import Link from "next/link";
+import { ListingPage } from "@/components/public/page-parts";
+import { mostViewedSchema } from "@/lib/validations/public";
+import { publicContentService } from "@/server/services/public-content.service";
+export default async function MostViewedPage({ searchParams }: PageProps<"/most-viewed">) { const query = mostViewedSchema.parse(await searchParams); const result = await publicContentService.mostViewed(query.range, query); const ranges = [["today", "امروز"], ["week", "هفته"], ["month", "ماه"], ["all", "همه زمان‌ها"]] as const; const tabs = <nav className="range-tabs" aria-label="بازه بازدید">{ranges.map(([value, label]) => <Link key={value} className={query.range === value ? "active" : ""} href={`/most-viewed?range=${value}`}>{label}</Link>)}</nav>; return <ListingPage title="پربازدیدترین‌ها" description="رتبه‌بندی بر اساس بازدیدهای ثبت‌شده واقعی" articles={result.rows} meta={result.meta} pathname="/most-viewed" params={{ range: query.range }} before={tabs} />; }
