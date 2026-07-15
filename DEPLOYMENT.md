@@ -47,3 +47,25 @@ See `.env.example` for the full list (DB, Supabase, email, secrets).
   (news sitemap uses a short 10-min window for freshness).
 - Pages are server-rendered (a per-request CSP nonce prevents full static
   generation); data reads use `React.cache` for per-request de-duplication.
+
+## Database security — Row Level Security (RLS)
+
+Supabase exposes the `public` schema through PostgREST / the anon key. This app
+accesses the database **only server-side via Prisma** (the `postgres`
+owner/service role) — it never uses a browser Supabase client or the anon key
+for data (Supabase is used only for Storage, server-side, with the service-role
+key). To resolve the Supabase **"RLS disabled in public"** security advisor,
+migration `20260715000000_enable_rls_public_tables` enables RLS on all
+Prisma-managed public tables with **no policies (deny-by-default)**:
+
+- The table owner (`postgres`, used by Prisma) **bypasses RLS**, so the app is
+  unaffected — verified by the full green test suite.
+- Any PostgREST/anon access to these tables returns **zero rows**, locking down
+  the Data API surface.
+
+**Prerequisite:** the app must connect as `postgres` (or a `BYPASSRLS`/owner
+role), which is the documented default in `.env.example`. If you point the app
+at a restricted, non-owner role, add explicit policies before relying on RLS.
+Run `get_advisors` in an authorized Supabase session after deploy to confirm the
+advisor is cleared. Auth-side advisors (leaked-password protection, MFA) are
+dashboard settings, not code.

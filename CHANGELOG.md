@@ -26,6 +26,9 @@ All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
 - **Docs**: `SEO.md`, `DEPLOYMENT.md`, and Google News/Discover checklists.
 - **Tests**: SEO unit + integration; 16 E2E scenarios that parse XML feeds with
   the browser DOMParser (not just status checks).
+- **Security**: enable RLS (deny-by-default) on all public tables so the
+  Supabase Data API exposes nothing; Prisma (owner role) bypasses it, app
+  unaffected. Resolves the "RLS disabled in public" advisor.
 
 ## Phase 6 — Public website
 ### Added
