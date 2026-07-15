@@ -1,14 +1,31 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-export function ViewTracker({ articleId }: { articleId: string }) {
+/**
+ * Fires a single, fire-and-forget view-count ping after the article renders.
+ * All dedup/bot-filtering happens on the server; the client just signals a
+ * genuine page view. Any failure is ignored so tracking can never affect the
+ * reading experience.
+ */
+export function ViewTracker({ slug }: { slug: string }) {
+  const sent = useRef(false);
   useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      fetch(`/api/v1/public/articles/${encodeURIComponent(articleId)}/view`, { method: "POST", keepalive: true, signal: controller.signal }).catch(() => undefined);
-    }, 1_200);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [articleId]);
+    if (sent.current) return;
+    sent.current = true;
+    const url = `/api/v1/public/articles/${encodeURIComponent(slug)}/view`;
+    const body = JSON.stringify({ path: window.location.pathname });
+    try {
+      // keepalive so the request survives a fast navigation away.
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }, [slug]);
   return null;
 }

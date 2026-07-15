@@ -16,6 +16,9 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
+  // One retry absorbs occasional dev-server on-demand-compile flakiness; a real
+  // failure still fails every attempt. `trace` is captured on the first retry.
+  retries: 1,
   timeout: 60_000,
   expect: { timeout: 15_000 },
   reporter: [["list"]],
@@ -23,6 +26,12 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
     navigationTimeout: 30_000,
+    // Allow pointing at a pre-installed browser binary (e.g. sandboxed CI
+    // images that ship Chromium at a fixed path). No-op when unset, so the
+    // default Playwright-managed browser is used.
+    launchOptions: process.env.PW_CHROMIUM_PATH
+      ? { executablePath: process.env.PW_CHROMIUM_PATH }
+      : {},
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

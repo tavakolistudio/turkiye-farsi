@@ -1,7 +1,18 @@
 import { withApi } from "@/server/api/handler";
 import { enforcePublicRateLimit } from "@/server/api/rate-limit";
-import { publicContentService } from "@/server/services/public-content.service";
-import { mostViewedSchema, parseParams } from "@/lib/validations/public";
+import { publicSiteService, type MostViewedWindow } from "@/server/services/public-site.service";
 import { ok } from "@/lib/api/response";
+
 export const dynamic = "force-dynamic";
-export function GET(req: Request) { return withApi(async () => { enforcePublicRateLimit(req, "public-most-viewed", 120); const query = parseParams(mostViewedSchema, new URL(req.url).searchParams); const result = await publicContentService.mostViewed(query.range, query); return ok(result.rows, result.meta); }); }
+
+const RANGES: MostViewedWindow[] = ["today", "week", "month", "all"];
+
+export function GET(req: Request) {
+  return withApi(async () => {
+    enforcePublicRateLimit(req, "public-most-viewed", 120);
+    const raw = new URL(req.url).searchParams.get("range");
+    const range: MostViewedWindow = RANGES.includes(raw as MostViewedWindow) ? (raw as MostViewedWindow) : "all";
+    const rows = await publicSiteService.mostViewed(range, 24);
+    return ok(rows, { range });
+  });
+}

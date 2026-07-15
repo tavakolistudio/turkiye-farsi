@@ -1,36 +1,125 @@
-/* eslint-disable @next/next/no-img-element -- advertisement media is supplied by the configured ad record */
 import Link from "next/link";
-import { ArticleCard, ArticleList } from "@/components/public/article-card";
-import { getHomepageCached } from "@/server/services/public-cache";
+import { publicSiteService } from "@/server/services/public-site.service";
+import { ArticleCard } from "@/components/public/article-card";
+import { SectionHeading, EmptyState } from "@/components/public/ui";
+import { routes } from "@/lib/public-links";
+import { siteConfig } from "@/lib/site-config";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const revalidate = 60;
+export const metadata = buildMetadata({
+  title: `${siteConfig.name} — اخبار و راهنمای ایرانیان ترکیه`,
+  absoluteTitle: true,
+  description: siteConfig.description,
+  path: "/",
+});
 
 export default async function HomePage() {
-  const data = await getHomepageCached();
-  const [hero, ...secondary] = data.hero;
-  return (
-    <div className="public-container home-page">
-      <h1 className="sr-only">ترکیه فارسی؛ اخبار و راهنمای زندگی در ترکیه</h1>
-      {hero ? (
-        <section className="hero-grid" aria-label="مهم‌ترین اخبار">
-          <ArticleCard article={hero} featured priority />
-          <div className="hero-secondary">{secondary.slice(0, 4).map((article) => <ArticleCard key={article.id} article={article} />)}</div>
-        </section>
-      ) : <div className="public-empty"><h2>تیتر اصلی هنوز انتخاب نشده است</h2><p>پس از انتشار و انتخاب خبر اصلی، این بخش نمایش داده می‌شود.</p></div>}
+  const home = await publicSiteService.getHomepage();
 
-      <HomeSection title="آخرین اخبار" href="/latest"><ArticleList articles={data.latest.slice(0, 8)} /></HomeSection>
-      <HomeSection title="اخبار فوری" href="/breaking"><ArticleList articles={data.breaking} /></HomeSection>
-      <HomeSection title="اخبار ترکیه" href="/news"><ArticleList articles={data.turkey} /></HomeSection>
-      {data.categorySections.map((section) => <HomeSection key={section.id} title={section.title} href={section.articles[0]?.primaryCategory ? `/category/${section.articles[0].primaryCategory.slug}` : "/news"}><ArticleList articles={section.articles} /></HomeSection>)}
-      <HomeSection title="یالووا" href="/news"><ArticleList articles={data.yalova} /></HomeSection>
-      <HomeSection title="پربازدیدترین‌ها" href="/most-viewed"><ArticleList articles={data.viewed} /></HomeSection>
-      <HomeSection title="منتخب سردبیر" href="/news?sort=latest"><ArticleList articles={data.editors} /></HomeSection>
-      <HomeSection title="راهنماهای کاربردی" href="/news?contentType=GUIDE"><ArticleList articles={data.guides} /></HomeSection>
-      {data.ads.filter((ad) => ad.imageUrl && ad.linkUrl).map((ad) => <aside key={ad.id} className="public-ad" aria-label="تبلیغات"><a href={ad.linkUrl!} target="_blank" rel="noopener noreferrer sponsored"><img src={ad.imageUrl!} alt={ad.name} loading="lazy" /></a></aside>)}
+  const hasAnything =
+    home.hero ||
+    home.latest.length ||
+    home.breaking.length ||
+    home.editorPicks.length ||
+    home.mostViewed.length ||
+    home.categoryRails.length;
+
+  if (!hasAnything) {
+    return (
+      <EmptyState
+        title="هنوز خبری منتشر نشده است"
+        description="به‌زودی جدیدترین اخبار و مطالب ترکیه فارسی در این صفحه نمایش داده می‌شود."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-12">
+      {/* Hero + sub-features */}
+      {home.hero && (
+        <section aria-label="مطلب ویژه" className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <ArticleCard article={home.hero} variant="hero" priority />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            {home.subFeatures.length ? (
+              home.subFeatures.map((a) => <ArticleCard key={a.id} article={a} variant="compact" />)
+            ) : (
+              <EmptyState title="مطلب دیگری موجود نیست" />
+            )}
+          </div>
+        </section>
+      )}
+
+      <div className="grid gap-12 lg:grid-cols-3">
+        <div className="space-y-12 lg:col-span-2">
+          {/* Latest */}
+          <section aria-labelledby="home-latest">
+            <div id="home-latest">
+              <SectionHeading title="آخرین اخبار" href={routes.latest()} />
+            </div>
+            {home.latest.length ? (
+              <div className="grid gap-5 sm:grid-cols-2">
+                {home.latest.map((a) => <ArticleCard key={a.id} article={a} />)}
+              </div>
+            ) : (
+              <EmptyState />
+            )}
+          </section>
+
+          {/* Editor picks */}
+          {home.editorPicks.length > 0 && (
+            <section aria-labelledby="home-picks">
+              <div id="home-picks">
+                <SectionHeading title="منتخب سردبیر" />
+              </div>
+              <div className="grid gap-5 sm:grid-cols-3">
+                {home.editorPicks.slice(0, 3).map((a) => <ArticleCard key={a.id} article={a} />)}
+              </div>
+            </section>
+          )}
+
+          {/* Category rails */}
+          {home.categoryRails.map((rail) => (
+            <section key={rail.id} aria-label={rail.title}>
+              <SectionHeading title={rail.title} href={routes.category(rail.slug)} />
+              <div className="grid gap-5 sm:grid-cols-2">
+                {rail.articles.map((a) => <ArticleCard key={a.id} article={a} variant="list" />)}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        {/* Sidebar */}
+        <aside className="space-y-12">
+          {home.breaking.length > 0 && (
+            <section aria-label="اخبار فوری">
+              <SectionHeading title="اخبار فوری" href={routes.breaking()} accent />
+              <div className="divide-y divide-border rounded-xl border border-border px-4">
+                {home.breaking.slice(0, 5).map((a) => <ArticleCard key={a.id} article={a} variant="compact" />)}
+              </div>
+            </section>
+          )}
+
+          <section aria-label="پربازدیدترین‌ها">
+            <SectionHeading title="پربازدیدترین‌ها" href={routes.mostViewed()} />
+            {home.mostViewed.length ? (
+              <ol className="divide-y divide-border rounded-xl border border-border px-4">
+                {home.mostViewed.slice(0, 5).map((a, i) => (
+                  <li key={a.id} className="flex items-start gap-3 py-3">
+                    <span className="mt-1 text-lg font-extrabold text-primary/40">{i + 1}</span>
+                    <h3 className="text-sm font-semibold leading-6">
+                      <Link href={routes.article(a.slug)} className="hover:text-primary">{a.title}</Link>
+                    </h3>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState title="هنوز آماری ثبت نشده است" />
+            )}
+          </section>
+        </aside>
+      </div>
     </div>
   );
-}
-
-function HomeSection({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
-  return <section className="home-section"><div className="section-heading"><h2>{title}</h2><Link href={href}>مشاهده همه</Link></div>{children}</section>;
 }
