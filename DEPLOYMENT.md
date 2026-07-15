@@ -69,3 +69,51 @@ at a restricted, non-owner role, add explicit policies before relying on RLS.
 Run `get_advisors` in an authorized Supabase session after deploy to confirm the
 advisor is cleared. Auth-side advisors (leaked-password protection, MFA) are
 dashboard settings, not code.
+
+## Vercel deployment (step by step)
+
+The repo is Vercel-ready (Next.js auto-detected; `postinstall: prisma generate`
+ensures a fresh Prisma Client on every build). To go live:
+
+1. **Connect the repo**: Vercel → *Add New Project* → import
+   `tavakolistudio/turkiye-farsi`. Framework: Next.js (auto). Production branch:
+   `main` (auto-deploy on push).
+2. **Set Environment Variables** (Production scope) — see the table below.
+3. **Deploy**. Vercel runs `npm install` (→ `postinstall: prisma generate`) then
+   the `vercel-build` script: **`prisma migrate deploy && tsx prisma/seed.ts &&
+   next build`**. So migrations (including `20260715000000_enable_rls_public_tables`)
+   and idempotent base-data provisioning (roles, permissions, super-admin from
+   `INITIAL_ADMIN_*`, categories, static pages, settings — demo content is skipped
+   in production) run automatically on every deploy. `DATABASE_URL`/`DIRECT_URL`
+   must be set in the Production scope for this to succeed.
+4. *(Optional, manual)* You can still run `npx prisma migrate deploy` yourself
+   from a trusted machine with the production connection strings if you prefer
+   not to migrate during the build.
+5. **Verify RLS**: in an authorized Supabase session, run `get_advisors` and
+   confirm the "RLS disabled in public" advisor is cleared. Ensure the app's DB
+   role is `postgres`/owner (bypasses RLS) — the pooled Supabase connection uses
+   this by default.
+6. **Post-deploy smoke** (on the real domain): `/`, an article, `/admin/login`,
+   `/robots.txt` (must now allow crawling), `/sitemap.xml`, `/news-sitemap.xml`,
+   `/rss.xml`.
+
+### Required Vercel environment variables
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | ✅ | Supabase **pooled** connection string. |
+| `DIRECT_URL` | ✅ | Supabase **direct** connection (for `migrate deploy`). |
+| `NEXT_PUBLIC_SITE_URL` | ✅ | **Real production origin** (e.g. `https://turkiyefarsi.com`). Drives every canonical/OG/sitemap/feed URL and enables `robots.txt` crawling. |
+| `NEXT_PUBLIC_SITE_NAME` | ✅ | e.g. `ترکیه فارسی`. |
+| `INITIAL_ADMIN_EMAIL` | ✅ | Seed super-admin (first deploy only). |
+| `INITIAL_ADMIN_PASSWORD` | ✅ | Strong secret. |
+| `INITIAL_ADMIN_NAME` | ➖ | Defaults to `مدیر ارشد`. |
+| `NEXT_PUBLIC_SUPABASE_URL` | ➖ | Only if using Supabase Storage. |
+| `SUPABASE_SERVICE_ROLE_KEY` | ➖ | Storage uploads (server-side). Secret. |
+| `SUPABASE_STORAGE_BUCKET` | ➖ | Defaults to `media`. |
+| `CRON_SECRET` | ✅* | Required for the scheduled-publish cron endpoint. Secret. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | ➖ | Email (newsletter/transactional). |
+| `SENTRY_DSN`, `NEXT_PUBLIC_GA_ID` | ➖ | Observability/analytics. |
+
+`VERCEL_ENV` is set automatically by Vercel and gates indexability (only
+`production` is crawlable).
