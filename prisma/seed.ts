@@ -118,7 +118,14 @@ async function seedUser(opts: {
     create: { email: opts.email, name: opts.name, passwordHash },
   });
 
-  const slug = slugify(opts.name) || user.id;
+  // Profile slug comes from the display name, but Profile.slug is globally
+  // unique — two different users with the same name (e.g. an old and a new
+  // admin both named "مدیر ارشد") would collide. Fall back to a suffixed slug.
+  let slug = slugify(opts.name) || user.id;
+  const slugOwner = await prisma.profile.findUnique({ where: { slug } });
+  if (slugOwner && slugOwner.userId !== user.id) {
+    slug = `${slug}-${user.id.slice(-6)}`;
+  }
   await prisma.profile.upsert({
     where: { userId: user.id },
     update: {},
@@ -543,7 +550,7 @@ async function main() {
   });
 
   console.log("\n✓ Seed complete.");
-  console.log(`  Super admin: ${adminEmail}`);
+  console.log("  Super admin: created/updated from INITIAL_ADMIN_EMAIL (not logged).");
 }
 
 main()
