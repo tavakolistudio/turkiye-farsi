@@ -43,3 +43,24 @@ Manage users, deactivate/reactivate, and revoke sessions (requires `user.manage`
 - Every destructive action is a **soft delete**; use the "نمایش حذف‌شده‌ها" toggle
   and **بازیابی** to restore.
 - All actions are recorded in the Audit Log.
+
+## SEO settings (Phase 7)
+
+Organization schema, the publisher block, and feeds read from the `general`
+Site Setting (JSON). All fields are optional and omitted when empty — never
+enter fabricated data:
+
+- `siteName`, `alternateName`, `description`, `logo` (absolute or root-relative)
+- `foundingDate` (only if genuinely known)
+- `email`, `phone` (only if public — become the Organization contact point)
+- `socials.{telegram,instagram,x,whatsapp}` — **use full absolute URLs**; handles
+  are ignored so no profile URL is invented.
+
+### Redirects
+
+Add a `Redirect` row (`from` → `to`, `permanent`) when an article/category slug
+changes. The resolver follows chains and blocks cycles automatically (a loop
+returns 404 rather than bouncing). Paths are root-relative (e.g.
+`/news/old-slug` → `/news/new-slug`).
+
+See `SEO.md` for the full metadata / schema / sitemap / news / RSS / robots design.

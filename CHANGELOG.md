@@ -2,6 +2,47 @@
 
 All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
 
+## Phase 7 — Technical SEO & news discovery
+### Added
+- **Dynamic metadata** for every public page via `buildMetadata`
+  (`src/lib/seo/metadata.ts`): guaranteed non-empty title/description, absolute
+  canonical from `NEXT_PUBLIC_SITE_URL`, Open Graph (article tags for news) and
+  Twitter cards. Pagination self-canonicals; search + thin/empty pages `noindex`.
+- **Structured data (JSON-LD)** — `NewsArticle`, `Article`, `BreadcrumbList`,
+  `Person`, `NewsMediaOrganization`, `WebSite`+`SearchAction`
+  (`src/lib/seo/jsonld.ts`, nonce-aware `JsonLd` component). Published-only,
+  real dates, publisher from `SiteSetting`, no fabricated fields.
+- **Sitemaps**: index `/sitemap.xml` + per-type `/sitemaps/{pages,categories,
+  tags,authors,articles}.xml` (published-only, real `lastmod`, absolute URLs,
+  article chunking at 20k).
+- **Google News sitemap** `/news-sitemap.xml` — last-48h published articles with
+  the `news:` namespace and `fa` publication language.
+- **RSS**: `/rss.xml`, `/rss/latest.xml`, `/rss/breaking.xml`,
+  `/rss/category/{slug}.xml` — escaped/CDATA, published-only, enclosures.
+- **Dynamic `robots.txt`** (`src/app/robots.ts`) — production crawlable
+  (admin/api/preview disallowed, sitemaps advertised); preview/dev `Disallow: /`.
+- **Redirect manager** — `Redirect`-backed resolver with chain following, cycle
+  detection (→404), and 308/307 wiring on dynamic-page misses.
+- **Docs**: `SEO.md`, `DEPLOYMENT.md`, and Google News/Discover checklists.
+- **Tests**: SEO unit + integration; 16 E2E scenarios that parse XML feeds with
+  the browser DOMParser (not just status checks).
+
+## Phase 6 — Public website
+### Added
+- Public route group `(public)` with RTL layout (header, nav, accessible mobile
+  menu, search, breaking-news bar, footer) and the homepage.
+- Routes: `/news`, `/news/[slug]`, `/category/[slug]`, `/tag/[slug]`,
+  `/author/[slug]`, `/latest`, `/breaking`, `/most-viewed`, `/search`, and the
+  institutional static pages. Safe public TipTap renderer (embed allowlist),
+  session-deduped view counting, real search with `SearchLog`.
+- `StaticPage` model + idempotent seed; public API for view/search/breaking/
+  most-viewed/author.
+
+## Phase 5 — Editorial workflow
+### Added
+- Editorial workflow (review queue, scheduling, revisions, corrections),
+  TipTap newsroom UI, secure workflow APIs, and preview tokens.
+
 ## Phase 4 — CMS content core
 ### Added
 - **Models**: full `Article` (editorial + SEO + social fields), `Category`

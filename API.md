@@ -64,3 +64,18 @@ Public payloads exclude internal/editorial/scheduling fields
 - Admin mutating **Server Actions** additionally verify `Origin`/`Host` (CSRF).
 - Public endpoints use a per-IP fixed-window rate limiter.
 - Uploads: MIME allowlist, 25 MB cap, safe/unique filenames, SVG & executables rejected.
+
+## SEO feeds & discovery routes (Phase 7)
+
+Public, cache-friendly XML/text endpoints (no auth, published-only):
+
+| route | description |
+| --- | --- |
+| `GET /robots.txt` | Dynamic robots (production crawlable; preview/dev disallowed). |
+| `GET /sitemap.xml` | Sitemap index referencing the child sitemaps + news sitemap. |
+| `GET /sitemaps/{pages,categories,tags,authors,articles}.xml` | Per-type sitemaps. `articles.xml?p=N` for chunks. |
+| `GET /news-sitemap.xml` | Google News sitemap — last-48h published articles. |
+| `GET /rss.xml`, `/rss/latest.xml`, `/rss/breaking.xml`, `/rss/category/{slug}.xml` | RSS 2.0 feeds. |
+
+All emit absolute URLs from `NEXT_PUBLIC_SITE_URL`, exclude draft/scheduled/
+deleted content, and never expose internal/editorial fields.
