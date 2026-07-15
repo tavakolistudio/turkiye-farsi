@@ -4,24 +4,24 @@ import { useState } from "react";
 import { Link2, Send, Share2, Check } from "lucide-react";
 
 /**
- * Share controls. Uses the native Web Share API when available, and always
- * offers concrete fallbacks (Telegram, X, WhatsApp, copy link) so no button is
- * ever a dead end. The absolute URL is resolved on the client from the current
- * location so it stays correct across environments.
+ * Share controls. The absolute article URL is passed in from the server so the
+ * share links render identically on the server and the client (no hydration
+ * mismatch). The native share / copy actions read the live location at click
+ * time as a best-effort enhancement. No button is ever a dead end.
  */
-export function ShareButtons({ title }: { title: string }) {
+export function ShareButtons({ title, url }: { title: string; url: string }) {
   const [copied, setCopied] = useState(false);
 
-  const currentUrl = () => (typeof window !== "undefined" ? window.location.href : "");
+  // Prefer the live URL at interaction time, fall back to the SSR-provided one.
+  const liveUrl = () => (typeof window !== "undefined" ? window.location.href : url);
 
   async function nativeShare() {
-    const url = currentUrl();
-    if (navigator.share) {
+    if (typeof navigator !== "undefined" && navigator.share) {
       try {
-        await navigator.share({ title, url });
+        await navigator.share({ title, url: liveUrl() });
         return;
       } catch {
-        /* user cancelled — fall through to nothing */
+        /* user cancelled */
       }
     } else {
       await copy();
@@ -30,7 +30,7 @@ export function ShareButtons({ title }: { title: string }) {
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(currentUrl());
+      await navigator.clipboard.writeText(liveUrl());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -38,7 +38,7 @@ export function ShareButtons({ title }: { title: string }) {
     }
   }
 
-  const enc = () => encodeURIComponent(currentUrl());
+  const enc = encodeURIComponent(url);
   const encTitle = encodeURIComponent(title);
 
   return (
@@ -52,7 +52,7 @@ export function ShareButtons({ title }: { title: string }) {
         <Share2 className="h-4 w-4" aria-hidden="true" /> اشتراک
       </button>
       <a
-        href={`https://t.me/share/url?url=${enc()}&text=${encTitle}`}
+        href={`https://t.me/share/url?url=${enc}&text=${encTitle}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="اشتراک در تلگرام"
@@ -61,7 +61,7 @@ export function ShareButtons({ title }: { title: string }) {
         <Send className="h-4 w-4" aria-hidden="true" /> تلگرام
       </a>
       <a
-        href={`https://api.whatsapp.com/send?text=${encTitle}%20${enc()}`}
+        href={`https://api.whatsapp.com/send?text=${encTitle}%20${enc}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="اشتراک در واتساپ"
@@ -70,7 +70,7 @@ export function ShareButtons({ title }: { title: string }) {
         واتساپ
       </a>
       <a
-        href={`https://twitter.com/intent/tweet?url=${enc()}&text=${encTitle}`}
+        href={`https://twitter.com/intent/tweet?url=${enc}&text=${encTitle}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="اشتراک در ایکس"

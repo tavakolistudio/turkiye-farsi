@@ -12,6 +12,7 @@ import { PostImage } from "@/components/public/post-image";
 import { ShareButtons } from "@/components/public/share-buttons";
 import { ViewTracker } from "@/components/public/view-tracker";
 import { routes } from "@/lib/public-links";
+import { siteConfig } from "@/lib/site-config";
 import { formatJalali, toIso, toPersianDigits } from "@/lib/dates";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -194,7 +195,7 @@ export default async function ArticlePage({ params }: Props) {
         )}
 
         <div className="my-8 flex flex-col gap-4 border-y border-border py-5 sm:flex-row sm:items-center sm:justify-between">
-          <ShareButtons title={a.title} />
+          <ShareButtons title={a.title} url={`${siteConfig.url}${routes.article(a.slug)}`} />
           <Link href={`${routes.page("contact")}`} className="text-sm text-muted-foreground underline hover:text-primary">
             گزارش خطا در این مطلب
           </Link>
