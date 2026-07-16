@@ -45,7 +45,6 @@ export async function SiteHeader() {
           <strong>{siteConfig.name}</strong>
           <span>روایت دقیق زندگی و خبر در ترکیه</span>
         </Link>
-        <div className="editorial-masthead-search"><SearchBox /></div>
       </div>
 
       <div className="editorial-nav-row">

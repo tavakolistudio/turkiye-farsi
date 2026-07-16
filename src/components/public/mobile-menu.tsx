@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { SearchBox } from "./search-box";
-import { ThemeToggle } from "./theme-toggle";
 import type { NavigationItem } from "./main-navigation";
 
 /**
@@ -120,9 +119,6 @@ export function MobileMenu({ items }: { items: NavigationItem[] }) {
                 })}
               </ul>
             </nav>
-            <div className="mt-auto border-t border-border pt-4">
-              <ThemeToggle />
-            </div>
           </div>
         </div>,
         document.body,
