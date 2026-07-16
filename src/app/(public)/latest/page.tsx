@@ -29,9 +29,9 @@ export default async function LatestPage({ searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div>
+    <div className="editorial-listing-page">
       <Breadcrumb items={[{ label: "آخرین اخبار" }]} />
-      <h1 className="mb-6 text-2xl font-extrabold">آخرین اخبار</h1>
+      <h1 className="editorial-standalone-title">آخرین اخبار</h1>
 
       {rows.length ? (
         <>

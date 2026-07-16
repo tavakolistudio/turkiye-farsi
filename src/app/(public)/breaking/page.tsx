@@ -27,16 +27,16 @@ export default async function BreakingPage({ searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div>
+    <div className="editorial-listing-page">
       <Breadcrumb items={[{ label: "اخبار فوری" }]} />
-      <h1 className="mb-6 flex items-center gap-2 text-2xl font-extrabold">
+      <h1 className="editorial-standalone-title editorial-standalone-title-breaking">
         <span className="inline-block h-6 w-1.5 rounded bg-breaking" aria-hidden="true" />
         اخبار فوری
       </h1>
 
       {rows.length ? (
         <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="editorial-three-grid">
             {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
           </div>
           <Pagination page={page} totalPages={totalPages} basePath={routes.breaking()} />

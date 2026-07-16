@@ -50,11 +50,11 @@ export default async function NewsIndexPage({ searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div>
+    <div className="editorial-listing-page">
       <Breadcrumb items={[{ label: "همه اخبار" }]} />
-      <h1 className="mb-6 text-2xl font-extrabold">همه اخبار</h1>
+      <header className="editorial-listing-header"><p>آرشیو</p><h1>همه اخبار</h1></header>
 
-      <form method="get" className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-4">
+      <form method="get" className="editorial-filter-form">
         <div>
           <label htmlFor="f-category" className="mb-1 block text-xs font-medium">دسته‌بندی</label>
           <select id="f-category" name="category" defaultValue={categorySlug ?? ""} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
@@ -84,8 +84,8 @@ export default async function NewsIndexPage({ searchParams }: Props) {
 
       {rows.length ? (
         <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
+          <div className="editorial-list-grid">
+            {rows.map((a) => <ArticleCard key={a.id} article={a} variant="horizontal" />)}
           </div>
           <Pagination
             page={page}
