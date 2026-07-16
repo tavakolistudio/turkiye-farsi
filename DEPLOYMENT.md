@@ -86,15 +86,16 @@ ensures a fresh Prisma Client on every build). To go live:
    `main` (auto-deploy on push).
 2. **Set Environment Variables** (Production scope) — see the table below.
 3. **Deploy**. Vercel runs `npm install` (→ `postinstall: prisma generate`) then
-   the `vercel-build` script: **`prisma migrate deploy && tsx prisma/seed.ts &&
-   next build`**. So migrations (including `20260715000000_enable_rls_public_tables`)
-   and idempotent base-data provisioning (roles, permissions, super-admin from
-   `INITIAL_ADMIN_*`, categories, static pages, settings — demo content is skipped
-   in production) run automatically on every deploy. `DATABASE_URL`/`DIRECT_URL`
-   must be set in the Production scope for this to succeed.
-4. *(Optional, manual)* You can still run `npx prisma migrate deploy` yourself
-   from a trusted machine with the production connection strings if you prefer
-   not to migrate during the build.
+   the `vercel-build` script: **`prisma migrate deploy && next build`**. So
+   migrations (including the RLS lockdown) apply automatically on every deploy,
+   but **the seed does NOT run during the build** — seeding is a controlled
+   manual step (see “Manual seed” below). `DATABASE_URL` and `DIRECT_URL` must be
+   set in the Production scope or the build fails at `prisma migrate deploy`.
+4. **Seed once, manually** (first deploy only, or when base data changes): run
+   `npm run db:seed` with `NODE_ENV=production` and the production connection
+   strings + `INITIAL_ADMIN_*` set in your shell. It is idempotent (safe to
+   re-run) and provisions roles, permissions, the super-admin, categories,
+   static pages and settings — demo content is skipped in production.
 5. **Verify RLS**: in an authorized Supabase session, run `get_advisors` and
    confirm the "RLS disabled in public" advisor is cleared. Ensure the app's DB
    role is `postgres`/owner (bypasses RLS) — the pooled Supabase connection uses
@@ -102,6 +103,28 @@ ensures a fresh Prisma Client on every build). To go live:
 6. **Post-deploy smoke** (on the real domain): `/`, an article, `/admin/login`,
    `/robots.txt` (must now allow crawling), `/sitemap.xml`, `/news-sitemap.xml`,
    `/rss.xml`.
+
+## Scheduled publishing (Vercel Cron)
+
+`vercel.json` registers one cron job:
+
+```json
+{ "crons": [{ "path": "/api/cron/publish", "schedule": "0 * * * *" }] }
+```
+
+- **Schedule**: hourly (`0 * * * *`). Chosen conservatively for the Hobby plan;
+  raise the frequency only deliberately.
+- **What it does**: `POST`/`GET /api/cron/publish` → `schedulingService.runDue()`
+  publishes articles whose `scheduledAt` has passed. The claim is atomic
+  (`updateMany` on `status = SCHEDULED`), so a re-run never double-publishes;
+  each run writes a `PublishJobLog` row.
+- **Auth**: the route calls `isValidCronRequest`, which requires
+  `Authorization: Bearer <CRON_SECRET>` compared in constant time and **fails
+  closed** when `CRON_SECRET` is unset. Vercel automatically attaches this header
+  to cron invocations when `CRON_SECRET` is present in the project env. The
+  secret is never placed in `vercel.json` or the URL.
+- Vercel Cron calls the path with `GET`; the route also accepts `POST` for manual
+  machine triggers. Both require the secret.
 
 ### Required Vercel environment variables
 
@@ -111,9 +134,10 @@ ensures a fresh Prisma Client on every build). To go live:
 | `DIRECT_URL` | ✅ | Supabase **direct** connection (for `migrate deploy`). |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | **Real production origin** (e.g. `https://turkiyefarsi.com`). Drives every canonical/OG/sitemap/feed URL and enables `robots.txt` crawling. |
 | `NEXT_PUBLIC_SITE_NAME` | ✅ | e.g. `ترکیه فارسی`. |
-| `INITIAL_ADMIN_EMAIL` | ✅ | Seed super-admin (first deploy only). |
-| `INITIAL_ADMIN_PASSWORD` | ✅ | Strong secret. |
+| `INITIAL_ADMIN_EMAIL` | Seed only | Read by the **manual** seed, not the build. Set it in the shell you run `db:seed` from; not required for runtime. |
+| `INITIAL_ADMIN_PASSWORD` | Seed only | Strong secret. Manual seed only. |
 | `INITIAL_ADMIN_NAME` | ➖ | Defaults to `مدیر ارشد`. |
+| `WEBHOOK_SECRET` | ✅ | Machine-to-machine webhook auth. Secret. |
 | `NEXT_PUBLIC_SUPABASE_URL` | ➖ | Only if using Supabase Storage. |
 | `SUPABASE_SERVICE_ROLE_KEY` | ➖ | Storage uploads (server-side). Secret. |
 | `SUPABASE_STORAGE_BUCKET` | ➖ | Defaults to `media`. |
