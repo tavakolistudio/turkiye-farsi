@@ -109,11 +109,13 @@ ensures a fresh Prisma Client on every build). To go live:
 `vercel.json` registers one cron job:
 
 ```json
-{ "crons": [{ "path": "/api/cron/publish", "schedule": "0 * * * *" }] }
+{ "crons": [{ "path": "/api/cron/publish", "schedule": "0 3 * * *" }] }
 ```
 
-- **Schedule**: hourly (`0 * * * *`). Chosen conservatively for the Hobby plan;
-  raise the frequency only deliberately.
+- **Schedule**: daily at 03:00 UTC (`0 3 * * *`). The Vercel **Hobby** plan only
+  permits **once-per-day** cron jobs — anything more frequent (e.g. hourly) is
+  rejected at deploy time. On **Pro**, raise the frequency (e.g. `0 * * * *`
+  hourly) so scheduled articles publish closer to their `scheduledAt`.
 - **What it does**: `POST`/`GET /api/cron/publish` → `schedulingService.runDue()`
   publishes articles whose `scheduledAt` has passed. The claim is atomic
   (`updateMany` on `status = SCHEDULED`), so a re-run never double-publishes;
