@@ -25,7 +25,7 @@ export function AuthorCard({ profile, fallbackName = "نویسنده" }: { profi
   const name = profile.displayName || fallbackName;
   return (
     <header className="author-card">
-      <div className="author-card-avatar">
+      <div className="author-card-avatar relative">
         {profile.avatarUrl ? (
           <PostImage src={profile.avatarUrl} alt={`تصویر ${name}`} sizes="112px" />
         ) : <span aria-hidden="true">{name.slice(0, 1)}</span>}

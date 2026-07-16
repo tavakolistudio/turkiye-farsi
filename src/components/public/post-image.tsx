@@ -38,7 +38,8 @@ export function PostImage({
       alt={label}
       fill
       sizes={sizes}
-      priority={priority}
+      loading={priority ? "eager" : undefined}
+      fetchPriority={priority ? "high" : undefined}
       unoptimized
       className={`object-cover ${className}`}
     />

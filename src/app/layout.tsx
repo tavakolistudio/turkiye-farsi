@@ -50,6 +50,7 @@ export default async function RootLayout({
     <html
       lang="fa"
       dir="rtl"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${vazirmatn.variable} ${estedad.variable} h-full`}
     >

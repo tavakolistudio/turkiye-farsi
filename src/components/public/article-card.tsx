@@ -27,7 +27,7 @@ export function ArticleCard({
           <ArticleMeta publishedAt={article.publishedAt} readingTime={mode === "image-less" ? article.readingTime : undefined} />
         </div>
         {mode === "compact" && article.featuredImage?.publicUrl && (
-          <Link href={href} className="editorial-card-thumb" tabIndex={-1} aria-hidden="true">
+          <Link href={href} className="editorial-card-thumb relative" tabIndex={-1} aria-hidden="true">
             <PostImage src={article.featuredImage.publicUrl} alt="" sizes="104px" />
           </Link>
         )}
@@ -39,7 +39,7 @@ export function ArticleCard({
     return (
       <article className="editorial-card editorial-card-horizontal">
         {article.featuredImage?.publicUrl && (
-          <Link href={href} className="editorial-card-media" tabIndex={-1} aria-hidden="true">
+          <Link href={href} className="editorial-card-media relative" tabIndex={-1} aria-hidden="true">
             <PostImage src={article.featuredImage.publicUrl} alt="" sizes="(max-width: 640px) 34vw, 260px" />
           </Link>
         )}
@@ -59,7 +59,7 @@ export function ArticleCard({
   if (mode === "hero") {
     return (
       <article className="editorial-card editorial-card-lead">
-        <Link href={href} className="editorial-card-media">
+        <Link href={href} className="editorial-card-media relative">
           <PostImage
             src={article.featuredImage?.publicUrl}
             alt={article.featuredImage?.alt ?? article.title}
@@ -80,7 +80,7 @@ export function ArticleCard({
 
   return (
     <article className="editorial-card editorial-card-vertical">
-      <Link href={href} className="editorial-card-media">
+      <Link href={href} className="editorial-card-media relative">
         <PostImage
           src={article.featuredImage?.publicUrl}
           alt={article.featuredImage?.alt ?? article.title}
