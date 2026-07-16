@@ -147,3 +147,68 @@ ensures a fresh Prisma Client on every build). To go live:
 
 `VERCEL_ENV` is set automatically by Vercel and gates indexability (only
 `production` is crawlable).
+
+> Set these in **Vercel → Project → Settings → Environment Variables** (or
+> `vercel env add <NAME> production`). Never commit them; `.env`/`.env.local`
+> are git-ignored. A missing `DATABASE_URL`/`DIRECT_URL` fails the build at
+> `prisma migrate deploy` (error `P1012: Environment variable not found`).
+
+## Production smoke test (after a successful deploy)
+
+Run against the real production origin:
+
+- **Public**: `/` (200), header/footer, mobile nav, `/news`, `/latest`,
+  `/breaking`, `/most-viewed`, `/search`, a static page, `/robots.txt`,
+  `/sitemap.xml`, `/news-sitemap.xml`, `/rss.xml`.
+- **Admin**: `/admin/login` → sign in as the seeded super-admin → dashboard;
+  create + autosave a draft; create a category/tag; upload → view → delete media.
+- **Isolation**: a draft/scheduled article must NOT appear on any public URL or
+  in the public API; preview needs a valid token; the public API never returns
+  admin/workflow fields.
+- **Cron**: `GET /api/cron/publish` with no/blank secret → 401; with the correct
+  `Authorization: Bearer <CRON_SECRET>` → 200 and a safe run (empty result when
+  nothing is due); a second call is idempotent.
+
+Delete any test data/media afterwards; keep audit logs.
+
+## Rollback
+
+- **Instant, no rebuild**: Vercel → Deployments → pick the last known-good
+  READY production deployment → **Promote to Production** (or **Instant
+  Rollback**). This only reverts application code/routing.
+- **The database is not rolled back by a code rollback.** Prisma migrations are
+  additive and forward-only — never `migrate reset`/`down` on production. If a
+  migration must be undone, ship a new corrective migration.
+- Take a Supabase backup (or PITR checkpoint) before any migration that changes
+  or drops columns. See “Backups” in `docs/supabase-production.md`.
+
+## Secret rotation
+
+Rotate on a schedule and immediately if a value is ever exposed:
+
+1. **DB password** — Supabase → Settings → Database → Reset. Update
+   `DATABASE_URL` + `DIRECT_URL` in Vercel (all scopes) and your local `.env`,
+   then redeploy.
+2. **`SUPABASE_SERVICE_ROLE_KEY`** — Supabase → Settings → API → roll the secret
+   key. Update Vercel + `.env`; redeploy. (Storage stops working until updated.)
+3. **`CRON_SECRET` / `WEBHOOK_SECRET`** — regenerate (`openssl rand -hex 32`),
+   update Vercel + `.env`; the cron picks up the new value on next deploy.
+4. **Admin password** — change it from inside the admin panel (never by editing
+   the DB); `INITIAL_ADMIN_PASSWORD` only affects a fresh manual seed.
+
+Never print secret values in logs, PRs, or issues. Rotating never requires
+committing a secret.
+
+## Production incident checklist
+
+1. **Triage**: Vercel → Deployments → check the latest production build/runtime
+   logs (`get_deployment_build_logs`, runtime logs). Do not paste secrets.
+2. **Fastest mitigation**: Instant Rollback to the last good deployment (above).
+3. **DB health**: confirm Supabase project is ACTIVE_HEALTHY and connections are
+   not exhausted (pooled `DATABASE_URL` + `connection_limit=1` for serverless).
+4. **Auth/authz regressions**: verify admin login and that drafts stay private.
+5. **Suspected secret exposure**: rotate the affected secret (above), then
+   redeploy; review `audit_logs`.
+6. **Migration failure mid-deploy**: the build fails before `next build`, so no
+   new code serves; fix forward with a corrective migration — never `reset`.
+7. Record the incident and follow-ups; keep audit logs intact.

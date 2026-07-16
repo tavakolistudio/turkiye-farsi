@@ -2,6 +2,21 @@
 
 All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
 
+## Production deployment (Vercel)
+### Changed
+- `vercel-build` is now `prisma migrate deploy && next build` — migrations apply
+  automatically on deploy, but the **seed no longer runs during the build**.
+  Seeding is a controlled, idempotent manual step (`npm run db:seed` with
+  `NODE_ENV=production`). Deploys no longer depend on `INITIAL_ADMIN_*`.
+### Added
+- **Scheduled-publish cron**: `vercel.json` registers `/api/cron/publish` at
+  `0 * * * *` (hourly). The route accepts `GET` (Vercel Cron) and `POST`, both
+  behind a constant-time `CRON_SECRET` Bearer check that fails closed; the run is
+  idempotent (atomic claim) and logs to `PublishJobLog`.
+- **`SECURITY.md`** — security posture and reporting.
+- **DEPLOYMENT.md** — production smoke-test, rollback, secret-rotation and
+  incident checklists; corrected the build-step description.
+
 ## Phase 7 — Technical SEO & news discovery
 ### Added
 - **Dynamic metadata** for every public page via `buildMetadata`
