@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { publicSiteService } from "@/server/services/public-site.service";
-import { ArticleCard } from "@/components/public/article-card";
-import { SectionHeading, EmptyState } from "@/components/public/ui";
+import { ArticleCard, HeroLeadStory, SecondaryStoryCard } from "@/components/public/article-card";
+import { EmptyState, SectionHeading } from "@/components/public/ui";
+import { ImpactForIranians, LatestNewsList, MostViewedList } from "@/components/public/editorial-sections";
 import { routes } from "@/lib/public-links";
 import { siteConfig } from "@/lib/site-config";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -20,14 +20,7 @@ export async function generateMetadata() {
 
 export default async function HomePage() {
   const home = await publicSiteService.getHomepage();
-
-  const hasAnything =
-    home.hero ||
-    home.latest.length ||
-    home.breaking.length ||
-    home.editorPicks.length ||
-    home.mostViewed.length ||
-    home.categoryRails.length;
+  const hasAnything = home.hero || home.latest.length || home.editorPicks.length || home.categoryRails.length;
 
   if (!hasAnything) {
     return (
@@ -39,92 +32,70 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="space-y-12">
-      {/* Hero + sub-features */}
+    <div className="editorial-home">
       {home.hero && (
-        <section aria-label="مطلب ویژه" className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <ArticleCard article={home.hero} variant="hero" priority />
+        <section className="homepage-lead-grid" aria-label="مهم‌ترین خبرها">
+          <div className="homepage-lead"><HeroLeadStory article={home.hero} /></div>
+          <div className="homepage-secondary">
+            {home.subFeatures.slice(0, 4).map((article) => <SecondaryStoryCard key={article.id} article={article} />)}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            {home.subFeatures.length ? (
-              home.subFeatures.map((a) => <ArticleCard key={a.id} article={a} variant="compact" />)
-            ) : (
-              <EmptyState title="مطلب دیگری موجود نیست" />
-            )}
+          <aside className="homepage-most-viewed" aria-labelledby="home-most-viewed">
+            <SectionHeading title="پربازدیدها" href={routes.mostViewed()} />
+            <MostViewedList articles={home.mostViewed} />
+          </aside>
+        </section>
+      )}
+
+      {home.latest.length > 0 && (
+        <section className="homepage-latest" aria-labelledby="home-latest">
+          <div id="home-latest"><SectionHeading title="آخرین اخبار" href={routes.latest()} /></div>
+          <LatestNewsList articles={home.latest} />
+        </section>
+      )}
+
+      {home.impactStory && <ImpactForIranians story={home.impactStory} />}
+
+      {home.categoryRails.map((rail, index) => (
+        <section key={rail.id} className="homepage-rail" aria-labelledby={`rail-${rail.id}`}>
+          <div id={`rail-${rail.id}`}><SectionHeading title={rail.title} href={routes.category(rail.slug)} /></div>
+          <div className={index % 2 === 0 ? "editorial-four-grid" : "editorial-rail-grid"}>
+            {rail.articles.map((article, articleIndex) => (
+              <ArticleCard
+                key={article.id}
+                article={article}
+                variant={index % 2 === 1 && articleIndex === 0 ? "horizontal" : "vertical"}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {home.guides.length > 0 && (
+        <section className="homepage-rail" aria-labelledby="home-guides">
+          <div id="home-guides"><SectionHeading title="راهنماهای زندگی" href={`${routes.news()}?type=GUIDE`} /></div>
+          <div className="editorial-four-grid">
+            {home.guides.map((article) => <ArticleCard key={article.id} article={article} />)}
           </div>
         </section>
       )}
 
-      <div className="grid gap-12 lg:grid-cols-3">
-        <div className="space-y-12 lg:col-span-2">
-          {/* Latest */}
-          <section aria-labelledby="home-latest">
-            <div id="home-latest">
-              <SectionHeading title="آخرین اخبار" href={routes.latest()} />
-            </div>
-            {home.latest.length ? (
-              <div className="grid gap-5 sm:grid-cols-2">
-                {home.latest.map((a) => <ArticleCard key={a.id} article={a} />)}
-              </div>
-            ) : (
-              <EmptyState />
-            )}
-          </section>
+      {home.videos.length > 0 && (
+        <section className="homepage-video" aria-labelledby="home-video">
+          <div id="home-video"><SectionHeading title="ویدئو" href={`${routes.news()}?type=VIDEO`} /></div>
+          <div className="editorial-four-grid">
+            {home.videos.map((article) => <ArticleCard key={article.id} article={article} />)}
+          </div>
+        </section>
+      )}
 
-          {/* Editor picks */}
-          {home.editorPicks.length > 0 && (
-            <section aria-labelledby="home-picks">
-              <div id="home-picks">
-                <SectionHeading title="منتخب سردبیر" />
-              </div>
-              <div className="grid gap-5 sm:grid-cols-3">
-                {home.editorPicks.slice(0, 3).map((a) => <ArticleCard key={a.id} article={a} />)}
-              </div>
-            </section>
-          )}
-
-          {/* Category rails */}
-          {home.categoryRails.map((rail) => (
-            <section key={rail.id} aria-label={rail.title}>
-              <SectionHeading title={rail.title} href={routes.category(rail.slug)} />
-              <div className="grid gap-5 sm:grid-cols-2">
-                {rail.articles.map((a) => <ArticleCard key={a.id} article={a} variant="list" />)}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        {/* Sidebar */}
-        <aside className="space-y-12">
-          {home.breaking.length > 0 && (
-            <section aria-label="اخبار فوری">
-              <SectionHeading title="اخبار فوری" href={routes.breaking()} accent />
-              <div className="divide-y divide-border rounded-xl border border-border px-4">
-                {home.breaking.slice(0, 5).map((a) => <ArticleCard key={a.id} article={a} variant="compact" />)}
-              </div>
-            </section>
-          )}
-
-          <section aria-label="پربازدیدترین‌ها">
-            <SectionHeading title="پربازدیدترین‌ها" href={routes.mostViewed()} />
-            {home.mostViewed.length ? (
-              <ol className="divide-y divide-border rounded-xl border border-border px-4">
-                {home.mostViewed.slice(0, 5).map((a, i) => (
-                  <li key={a.id} className="flex items-start gap-3 py-3">
-                    <span className="mt-1 text-lg font-extrabold text-primary/40">{i + 1}</span>
-                    <h3 className="text-sm font-semibold leading-6">
-                      <Link href={routes.article(a.slug)} className="hover:text-primary">{a.title}</Link>
-                    </h3>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <EmptyState title="هنوز آماری ثبت نشده است" />
-            )}
-          </section>
-        </aside>
-      </div>
+      {home.editorPicks.length > 0 && (
+        <section className="homepage-rail" aria-labelledby="home-picks">
+          <div id="home-picks"><SectionHeading title="منتخب سردبیر" /></div>
+          <div className="editorial-three-grid">
+            {home.editorPicks.slice(0, 3).map((article) => <ArticleCard key={article.id} article={article} />)}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

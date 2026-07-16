@@ -20,7 +20,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <JsonLd data={siteGraph} />
       <SiteHeader />
       <BreakingBar />
-      <main id="main-content" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+      <main id="main-content" className="editorial-shell w-full flex-1 py-6 md:py-10">
         {children}
       </main>
       <SiteFooter />

@@ -4,9 +4,12 @@ import { routes } from "@/lib/public-links";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { SearchBox } from "./search-box";
 import { MobileMenu } from "./mobile-menu";
+import { MainNavigation, type NavigationItem } from "./main-navigation";
+import { ThemeToggle } from "./theme-toggle";
+import { formatJalali } from "@/lib/dates";
 
 /** Primary navigation shown on desktop; the same items feed the mobile menu. */
-const PRIMARY_LINKS = [
+const PRIMARY_LINKS: NavigationItem[] = [
   { name: "آخرین اخبار", href: routes.latest() },
   { name: "اخبار فوری", href: routes.breaking() },
   { name: "پربازدیدها", href: routes.mostViewed() },
@@ -14,41 +17,41 @@ const PRIMARY_LINKS = [
 
 export async function SiteHeader() {
   const categories = await publicSiteService.navCategories();
+  const categoryLinks = categories.slice(0, 9).map((category) => ({
+    name: category.name,
+    href: routes.category(category.slug),
+  }));
+  const navigation = [...categoryLinks, ...PRIMARY_LINKS].filter(
+    (item, index, items) => items.findIndex((candidate) => candidate.href === item.href) === index,
+  );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4">
-        <MobileMenu categories={categories.map((c) => ({ name: c.name, slug: c.slug }))} />
-
-        <Link href={routes.home()} className="flex shrink-0 flex-col leading-none">
-          <span className="text-xl font-extrabold tracking-tight">{siteConfig.name}</span>
-          <span className="text-[10px] text-muted-foreground">{siteConfig.nameEn}</span>
-        </Link>
-
-        <nav aria-label="ناوبری اصلی" className="mr-auto hidden items-center gap-1 md:flex">
-          {categories.slice(0, 6).map((c) => (
-            <Link
-              key={c.slug}
-              href={routes.category(c.slug)}
-              className="rounded-md px-2.5 py-1.5 text-sm font-medium hover:bg-accent"
-            >
-              {c.name}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="mr-auto md:mr-0">
-          <SearchBox />
+    <header className="editorial-header">
+      <div className="editorial-utility">
+        <div className="editorial-shell">
+          <p><time dateTime={new Date().toISOString()}>{formatJalali(new Date())}</time></p>
+          <nav aria-label="پیوندهای رسانه">
+            <Link href={routes.page("about")}>درباره ما</Link>
+            <Link href={routes.page("contact")}>تماس</Link>
+            <Link href="/admin/login">ورود</Link>
+            <ThemeToggle />
+          </nav>
         </div>
       </div>
 
-      <div className="border-t border-border bg-muted/40">
-        <div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-4 overflow-x-auto px-4 text-sm">
-          {PRIMARY_LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="shrink-0 font-medium text-muted-foreground hover:text-primary">
-              {l.name}
-            </Link>
-          ))}
+      <div className="editorial-masthead editorial-shell">
+        <MobileMenu items={navigation} />
+        <Link href={routes.home()} className="editorial-wordmark" aria-label={`${siteConfig.name}، صفحه اصلی`}>
+          <strong>{siteConfig.name}</strong>
+          <span>روایت دقیق زندگی و خبر در ترکیه</span>
+        </Link>
+        <div className="editorial-masthead-search"><SearchBox /></div>
+      </div>
+
+      <div className="editorial-nav-row">
+        <div className="editorial-shell">
+          <MainNavigation items={navigation} />
+          <div className="editorial-nav-search"><SearchBox /></div>
         </div>
       </div>
     </header>

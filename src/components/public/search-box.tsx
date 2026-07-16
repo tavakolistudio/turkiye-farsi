@@ -31,7 +31,7 @@ export function SearchBox({
     <form
       role="search"
       onSubmit={onSubmit}
-      className={variant === "header" ? "relative hidden md:block" : "relative w-full"}
+      className={variant === "header" ? "editorial-search-box hidden md:block" : "editorial-search-box relative w-full"}
     >
       <label htmlFor={`search-${variant}`} className="sr-only">
         جستجو در سایت
@@ -44,14 +44,14 @@ export function SearchBox({
         onChange={(e) => setValue(e.target.value)}
         autoFocus={autoFocus}
         placeholder="جستجو…"
-        className={`w-full rounded-full border border-border bg-background py-2 pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        className={`w-full rounded-md border border-border bg-background py-2 pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           variant === "header" ? "md:w-56 lg:w-64" : ""
         }`}
       />
       <button
         type="submit"
         aria-label="جستجو"
-        className="absolute inset-y-0 left-1 flex items-center justify-center rounded-full px-2 text-muted-foreground hover:text-primary"
+        className="absolute inset-y-0 left-1 flex min-w-11 items-center justify-center rounded-md px-2 text-muted-foreground hover:text-primary"
       >
         <Search className="h-4 w-4" aria-hidden="true" />
       </button>

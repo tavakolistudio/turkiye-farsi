@@ -13,13 +13,12 @@ export function SectionHeading({
   accent?: boolean;
 }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-4 border-b border-border pb-2">
-      <h2 className="flex items-center gap-2 text-lg font-extrabold">
-        <span className={`inline-block h-5 w-1.5 rounded ${accent ? "bg-breaking" : "bg-primary"}`} aria-hidden="true" />
+    <div className={`editorial-section-heading ${accent ? "editorial-section-heading-breaking" : ""}`}>
+      <h2>
         {title}
       </h2>
       {href && (
-        <Link href={href} className="shrink-0 text-sm font-medium text-primary hover:underline">
+        <Link href={href}>
           مشاهده همه
         </Link>
       )}
@@ -59,7 +58,7 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
+    <div className="editorial-empty-state">
       <p className="font-semibold">{title}</p>
       {description && <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>}
     </div>

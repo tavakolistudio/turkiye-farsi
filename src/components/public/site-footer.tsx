@@ -4,62 +4,63 @@ import { routes, STATIC_PAGES } from "@/lib/public-links";
 import { publicSiteService } from "@/server/services/public-site.service";
 import { siteSettingsService } from "@/server/services/site-settings.service";
 
+const SOCIAL_LABELS: Record<string, string> = {
+  telegram: "تلگرام",
+  instagram: "اینستاگرام",
+  x: "ایکس",
+  whatsapp: "واتس‌اپ",
+};
+
 export async function SiteFooter() {
   const [categories, settings] = await Promise.all([
     publicSiteService.navCategories(),
     siteSettingsService.get(),
   ]);
-
-  const about = settings.footer.about || siteConfig.description;
-  const copyright =
-    settings.footer.copyright || `© ${siteConfig.name} — همه حقوق محفوظ است.`;
+  const about = settings.footer.about || settings.general.description || siteConfig.description;
+  const copyright = settings.footer.copyright || `© ${siteConfig.name} — همه حقوق محفوظ است.`;
+  const socials = Object.entries(settings.general.socials ?? {}).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string" && /^https?:\/\//i.test(entry[1]),
+  );
 
   return (
-    <footer className="mt-16 border-t border-border bg-muted/40">
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="sm:col-span-2 lg:col-span-1">
-          <p className="text-lg font-extrabold">{siteConfig.name}</p>
-          <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">{about}</p>
-        </div>
+    <footer className="editorial-footer">
+      <div className="editorial-shell editorial-footer-grid">
+        <section className="editorial-footer-about">
+          <p className="editorial-footer-wordmark">{siteConfig.name}</p>
+          <p>{about}</p>
+        </section>
 
-        <nav aria-label="دسته‌بندی‌ها">
-          <h2 className="mb-3 text-sm font-bold">دسته‌بندی‌ها</h2>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            {categories.slice(0, 6).map((c) => (
-              <li key={c.slug}>
-                <Link href={routes.category(c.slug)} className="hover:text-primary">{c.name}</Link>
-              </li>
+        <nav aria-label="دسته‌بندی‌های مهم">
+          <h2>دسته‌بندی‌ها</h2>
+          <ul>{categories.slice(0, 7).map((category) => (
+            <li key={category.slug}><Link href={routes.category(category.slug)}>{category.name}</Link></li>
+          ))}</ul>
+        </nav>
+
+        <nav aria-label="صفحات رسانه">
+          <h2>رسانه</h2>
+          <ul>
+            <li><Link href={routes.latest()}>آخرین اخبار</Link></li>
+            <li><Link href={routes.breaking()}>اخبار فوری</Link></li>
+            <li><Link href={routes.mostViewed()}>پربازدیدها</Link></li>
+            <li><Link href="/rss.xml">RSS</Link></li>
+            {STATIC_PAGES.map((page) => <li key={page.slug}><Link href={routes.page(page.slug)}>{page.title}</Link></li>)}
+          </ul>
+        </nav>
+
+        <section>
+          <h2>تماس و شبکه‌ها</h2>
+          <ul>
+            {settings.general.email && <li><a href={`mailto:${settings.general.email}`}>{settings.general.email}</a></li>}
+            {settings.general.phone && <li><a href={`tel:${settings.general.phone}`}>{settings.general.phone}</a></li>}
+            {settings.general.address && <li><address>{settings.general.address}</address></li>}
+            {socials.map(([key, url]) => (
+              <li key={key}><a href={url} target="_blank" rel="noopener noreferrer">{SOCIAL_LABELS[key] ?? key}</a></li>
             ))}
           </ul>
-        </nav>
-
-        <nav aria-label="بخش‌ها">
-          <h2 className="mb-3 text-sm font-bold">بخش‌ها</h2>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li><Link href={routes.latest()} className="hover:text-primary">آخرین اخبار</Link></li>
-            <li><Link href={routes.breaking()} className="hover:text-primary">اخبار فوری</Link></li>
-            <li><Link href={routes.mostViewed()} className="hover:text-primary">پربازدیدترین‌ها</Link></li>
-            <li><Link href={routes.news()} className="hover:text-primary">همه اخبار</Link></li>
-          </ul>
-        </nav>
-
-        <nav aria-label="درباره">
-          <h2 className="mb-3 text-sm font-bold">درباره</h2>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            {STATIC_PAGES.map((p) => (
-              <li key={p.slug}>
-                <Link href={routes.page(p.slug)} className="hover:text-primary">{p.title}</Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        </section>
       </div>
-
-      <div className="border-t border-border">
-        <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs text-muted-foreground">
-          {copyright}
-        </div>
-      </div>
+      <div className="editorial-shell editorial-copyright">{copyright}</div>
     </footer>
   );
 }
