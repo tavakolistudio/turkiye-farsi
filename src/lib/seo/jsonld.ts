@@ -108,7 +108,8 @@ export function breadcrumbSchema(items: BreadcrumbItem[]): Json {
   };
 }
 
-export interface NewsArticleInput {
+export interface ArticleSchemaInput {
+  type?: "NewsArticle" | "Article";
   headline: string;
   description?: string | null;
   url: string; // absolute canonical
@@ -120,9 +121,9 @@ export interface NewsArticleInput {
   keywords?: string[];
 }
 
-export function newsArticleSchema(a: NewsArticleInput, pub: PublisherInfo): Json {
+export function articleSchema(a: ArticleSchemaInput, pub: PublisherInfo): Json {
   return clean({
-    "@type": "NewsArticle",
+    "@type": a.type ?? "NewsArticle",
     headline: a.headline.slice(0, 110),
     description: a.description || undefined,
     image: a.images.length ? a.images : [ogImageUrl(null)],
@@ -137,6 +138,10 @@ export function newsArticleSchema(a: NewsArticleInput, pub: PublisherInfo): Json
     inLanguage: "fa-IR",
     isAccessibleForFree: true,
   });
+}
+
+export function newsArticleSchema(a: ArticleSchemaInput, pub: PublisherInfo): Json {
+  return articleSchema({ ...a, type: "NewsArticle" }, pub);
 }
 
 /** Wrap one or more schema objects into a single @graph document. */

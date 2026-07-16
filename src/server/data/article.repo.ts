@@ -42,6 +42,7 @@ export const publicArticleSelect = {
   changeWarning: true,
   canonicalUrl: true,
   noindex: true,
+  ogImage: { select: { publicUrl: true, alt: true, width: true, height: true } },
   author: {
     select: {
       name: true,

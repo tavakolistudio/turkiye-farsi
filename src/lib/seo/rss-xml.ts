@@ -17,6 +17,16 @@ export interface RssItem {
   author?: string | null;
   category?: string | null;
   image?: string | null; // absolute enclosure URL
+  imageType?: string | null;
+}
+
+/** Plain-text RSS descriptions: remove active/markup content and normalize whitespace. */
+export function sanitizeRssText(value: string): string {
+  return value
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** MIME type for an image URL, from its extension (defaults to jpeg). */
@@ -55,9 +65,9 @@ export function buildRss(channel: RssChannel, items: RssItem[]): string {
       if (it.pubDate) parts.push(`      <pubDate>${it.pubDate.toUTCString()}</pubDate>`);
       if (it.author) parts.push(`      <dc:creator>${cdata(it.author)}</dc:creator>`);
       if (it.category) parts.push(`      <category>${xmlEscape(it.category)}</category>`);
-      if (it.description) parts.push(`      <description>${cdata(it.description)}</description>`);
+      if (it.description) parts.push(`      <description>${cdata(sanitizeRssText(it.description))}</description>`);
       if (it.image) {
-        parts.push(`      <enclosure url="${xmlEscape(it.image)}" type="${imageMimeType(it.image)}" />`);
+        parts.push(`      <enclosure url="${xmlEscape(it.image)}" type="${xmlEscape(it.imageType || imageMimeType(it.image))}" />`);
       }
       return `    <item>\n${parts.join("\n")}\n    </item>`;
     })

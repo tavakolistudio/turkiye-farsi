@@ -9,6 +9,7 @@ import { buildMetadata } from "@/lib/seo/metadata";
 import { absoluteUrl } from "@/lib/seo/urls";
 import { breadcrumbSchema, graph, personSchema } from "@/lib/seo/jsonld";
 import { redirectOrNotFound } from "@/server/seo/redirect-or-404";
+import { siteSettingsService } from "@/server/services/site-settings.service";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -31,16 +32,19 @@ async function load(slug: string, page: number) {
   }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
-  const data = await load(slug, 1);
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const [{ slug }, sp, publisher] = await Promise.all([params, searchParams, siteSettingsService.publisher()]);
+  const page = pageNum(sp.page);
+  const data = await load(slug, page);
   if (!data) return { title: "نویسنده یافت نشد", robots: { index: false, follow: false } };
   const name = data.profile.displayName ?? "نویسنده";
   return buildMetadata({
     title: name,
     description: data.profile.bio ?? `مطالب منتشرشده توسط ${name} در ترکیه فارسی.`,
     path: routes.author(data.profile.slug),
+    canonicalParams: { page: page > 1 ? page : undefined },
     image: data.profile.avatarUrl,
+    fallbackImage: publisher.logo,
   });
 }
 

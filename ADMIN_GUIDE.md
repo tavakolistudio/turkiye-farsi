@@ -23,7 +23,7 @@ Sidebar links appear only for permissions you hold.
   body (plain paragraphs — full TipTap editor arrives in Phase 5), and basic SEO
   (meta title/description, canonical, noindex).
 - Row actions: ویرایش / حذف (soft) / بازیابی — shown per permission.
-- Publishing a draft sets `publishedAt`; the slug is locked after publication.
+- Publishing a draft sets `publishedAt`; a later slug change atomically preserves the old public URL with a permanent 301 redirect.
 
 ### دسته‌بندی‌ها — `/admin/categories`
 - Parent/child hierarchy (circular parenting is prevented).

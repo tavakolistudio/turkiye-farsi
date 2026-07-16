@@ -175,7 +175,7 @@ test("12. preview responses are noindex", async ({ request }) => {
 
 test("13. slug-change redirect issues a permanent redirect", async ({ request }) => {
   const res = await request.get(`/news/seo-old-${TS}`, { maxRedirects: 0 });
-  expect(res.status()).toBe(308);
+    expect(res.status()).toBe(301);
   expect(res.headers()["location"]).toContain("/news/");
 });
 

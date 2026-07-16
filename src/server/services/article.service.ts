@@ -17,6 +17,7 @@ import {
 } from "@/lib/validations/article";
 import { buildOrderBy, paginationArgs, paginationMeta, type ListQuery } from "@/lib/api/pagination";
 import type { ServiceContext } from "./context";
+import { registerRedirect } from "./redirect.service";
 
 const SORTABLE = ["createdAt", "updatedAt", "publishedAt", "title", "priority", "viewCount"] as const;
 
@@ -166,12 +167,9 @@ export const articleService = {
 
     await assertRelationsExist(input);
 
-    // Slug is locked after publication to avoid breaking live URLs.
+    // Published slugs may change because the old URL is preserved atomically.
     let slug = existing.slug;
     if (input.slug && input.slug !== existing.slug) {
-      if (existing.publishedAt) {
-        throw ApiError.conflict("پس از انتشار، نامک مطلب قابل تغییر نیست (برای حفظ لینک‌ها).");
-      }
       slug = await generateUniqueSlug(input.slug, (s) => articleRepo.slugExists(s, id));
     }
 
@@ -209,6 +207,9 @@ export const articleService = {
         for (const tagId of input.tagIds) {
           await tx.articleTag.create({ data: { article: { connect: { id } }, tag: { connect: { id: tagId } } } });
         }
+      }
+      if (existing.publishedAt && slug !== existing.slug) {
+        await registerRedirect(tx, `/news/${existing.slug}`, `/news/${slug}`);
       }
       return tx.article.update({
         where: { id },

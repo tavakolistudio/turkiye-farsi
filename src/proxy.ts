@@ -4,6 +4,7 @@ import {
   buildContentSecurityPolicy,
   staticSecurityHeaders,
 } from "@/lib/security/headers";
+import { redirectService } from "@/server/services/redirect.service";
 
 /**
  * Runs on every route. Two responsibilities:
@@ -28,7 +29,7 @@ function generateNonce(): string {
   return btoa(binary);
 }
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const isDev = process.env.NODE_ENV !== "production";
   const nonce = generateNonce();
   const csp = buildContentSecurityPolicy(nonce, {
@@ -44,6 +45,21 @@ export function proxy(req: NextRequest) {
 
   const { pathname, search } = req.nextUrl;
 
+  // Database-backed legacy URLs need a true HTTP 301. Keep the lookup limited
+  // to public slug routes so static assets, APIs and admin requests never pay
+  // for it. The resolver collapses chains and refuses loops.
+  if (/^\/(news|category|tag|author)\/[^/]+\/?$/.test(pathname)) {
+    const resolved = await redirectService.resolve(pathname);
+    if (resolved) {
+      const url = req.nextUrl.clone();
+      url.pathname = resolved.to;
+      url.search = "";
+      const response = NextResponse.redirect(url, resolved.permanent ? 301 : 307);
+      applyHeaders(response, csp, isDev, pathname);
+      return response;
+    }
+  }
+
   // Auth gate for protected /admin routes.
   if (pathname.startsWith("/admin")) {
     const isPublic = PUBLIC_ADMIN_PATHS.some(
@@ -54,20 +70,25 @@ export function proxy(req: NextRequest) {
       url.pathname = "/admin/login";
       url.search = `?next=${encodeURIComponent(pathname + search)}`;
       const redirect = NextResponse.redirect(url);
-      applyHeaders(redirect, csp, isDev);
+      applyHeaders(redirect, csp, isDev, pathname);
       return redirect;
     }
   }
 
   const res = NextResponse.next({ request: { headers: requestHeaders } });
-  applyHeaders(res, csp, isDev);
+  applyHeaders(res, csp, isDev, pathname);
   return res;
 }
 
-function applyHeaders(res: NextResponse, csp: string, isDev: boolean) {
+function applyHeaders(res: NextResponse, csp: string, isDev: boolean, pathname: string) {
   res.headers.set("Content-Security-Policy", csp);
   for (const [key, value] of Object.entries(staticSecurityHeaders(isDev))) {
     res.headers.set(key, value);
+  }
+  const isPreviewDeployment = !!process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production";
+  const isPrivatePath = pathname.startsWith("/admin") || pathname.startsWith("/preview") || pathname.startsWith("/search");
+  if (isPreviewDeployment || isPrivatePath) {
+    res.headers.set("X-Robots-Tag", "noindex, nofollow");
   }
 }
 

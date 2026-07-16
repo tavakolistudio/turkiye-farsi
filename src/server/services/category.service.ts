@@ -14,6 +14,8 @@ import {
   type ListQuery,
 } from "@/lib/api/pagination";
 import type { ServiceContext } from "./context";
+import { prisma } from "@/lib/db";
+import { registerRedirect } from "./redirect.service";
 
 const SORTABLE = ["order", "name", "createdAt", "updatedAt"] as const;
 
@@ -128,7 +130,13 @@ export const categoryService = {
         ? { image: input.imageId ? { connect: { id: input.imageId } } : { disconnect: true } }
         : {}),
     };
-    const updated = await categoryRepo.update(id, data);
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.category.update({ where: { id }, data });
+      if (slug !== existing.slug) {
+        await registerRedirect(tx, `/category/${existing.slug}`, `/category/${slug}`);
+      }
+      return row;
+    });
     await auditLog({
       userId: ctx.actor.id,
       action: "category.update",

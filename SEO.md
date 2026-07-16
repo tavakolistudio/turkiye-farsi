@@ -21,7 +21,7 @@ or fabricated.
   - `/category/[slug]`, `/tag/[slug]` — self-referencing canonical **including
     the pagination `page` param**; thin tag archives (0 published articles) are
     `noindex`.
-  - `/author/[slug]` — author name/bio, avatar OG image.
+  - `/author/[slug]` — author name/bio, avatar OG image and paginated canonical.
   - `/search` — always `noindex, follow`.
   - Static pages — DB title/meta; empty/stub pages are `noindex`.
 - `/admin/*` is gated (login) and disallowed in robots; `/preview/*` sends
@@ -47,7 +47,7 @@ content can't break out).
 
 - **Site-wide** (public layout): `NewsMediaOrganization` + `WebSite` with a
   `SearchAction` targeting `/search?q={search_term_string}`.
-- **Article**: `NewsArticle` (+ `Article` semantics) with `headline`,
+- **Article**: `NewsArticle` for news/short-news and `Article` for other editorial content, with `headline`,
   `description`, `image`, `datePublished`, `dateModified`, `author` (Person),
   `publisher` (Organization), `mainEntityOfPage`, `articleSection`, `keywords`,
   `inLanguage: fa-IR`, `isAccessibleForFree: true`, plus a `BreadcrumbList`.
@@ -67,7 +67,8 @@ publisher data comes from `SiteSetting`; optional fields are omitted when absent
 - `/sitemaps/pages.xml`, `/sitemaps/categories.xml`, `/sitemaps/tags.xml`,
   `/sitemaps/authors.xml`, `/sitemaps/articles.xml` — per-type `urlset`s with
   real `lastmod`, absolute URLs, **published-only** content.
-  - Tags/authors are included only when they have ≥1 published article.
+  - Categories/tags/authors are included only when they have ≥1 published article.
+  - Core public archives are included without inventing a `lastmod`; database pages use their real update time.
   - Articles are **chunked** at `SITEMAP_CHUNK` (20k) URLs via
     `/sitemaps/articles.xml?p=N`; the index lists one entry per chunk, so the
     structure scales to hundreds of thousands of URLs.
@@ -76,7 +77,7 @@ publisher data comes from `SiteSetting`; optional fields are omitted when absent
 ## News sitemap (Google News)
 
 - `/news-sitemap.xml` — `urlset` with the `news:` namespace.
-- Contains **only published articles from the last 48 hours** (Google News
+- Contains **only published news/short-news from the last 48 hours** (Google News
   window), each with `<news:publication>` (name from `SiteSetting`, language
   `fa`), `<news:publication_date>`, and `<news:title>`.
 - Short cache (10 min) so fresh articles surface quickly. Never includes drafts,
@@ -90,8 +91,8 @@ publisher data comes from `SiteSetting`; optional fields are omitted when absent
 - `/rss/category/{slug}.xml` — per-category.
 
 Each `<item>`: `title`, `link`, `guid` (permalink), `pubDate` (RFC-822),
-`dc:creator`, `category`, `description` (CDATA), and an `<enclosure>` when a
-valid image exists. Text is escaped/CDATA-wrapped — no raw HTML, scripts, or
+`dc:creator`, `category`, plain-text `description` (CDATA), and an `<enclosure>` when a
+valid image with an image MIME type exists. Text is sanitized and escaped/CDATA-wrapped — no raw HTML, scripts, or
 admin data. Published-only, absolute URLs. Builder: `src/lib/seo/rss-xml.ts`.
 
 ## robots.txt
@@ -99,7 +100,7 @@ admin data. Published-only, absolute URLs. Builder: `src/lib/seo/rss-xml.ts`.
 `src/app/robots.ts` (dynamic):
 
 - **Production** (`VERCEL_ENV=production`, or a production build on a non-local
-  origin): `Allow: /` with `Disallow` for `/admin`, `/api/`, `/preview`, and
+  origin): `Allow: /` with `Disallow` for `/admin`, `/api/`, `/preview`, `/search`, and
   `utm_` query URLs; lists `/sitemap.xml` and `/news-sitemap.xml`; sets `host`.
 - **Non-production / preview**: `Disallow: /` (staging is never indexed).
 
@@ -109,18 +110,21 @@ admin data. Published-only, absolute URLs. Builder: `src/lib/seo/rss-xml.ts`.
 - Resolver: `src/server/services/redirect.service.ts` — follows chains
   (A→B→C) up to 10 hops, **detects cycles and returns null (404)** instead of
   emitting a redirect that would ping-pong.
-- Wiring: `src/server/seo/redirect-or-404.ts` — dynamic public pages
-  (article/category/tag/author) consult the table on a miss and issue a **308**
-  (permanent) or **307** (temporary), else `notFound()`. Non-ASCII destinations
-  are percent-encoded for a valid `Location` header. Runs in the Node runtime,
-  not edge middleware.
+- Registration: published article, category and tag slug changes atomically
+  upsert the old path; tag merges do the same. Self-links, loops and overlong
+  chains are rejected before saving.
+- Wiring: `src/proxy.ts` consults the table only for public slug routes and emits
+  a true **301** (permanent) or **307** (temporary). Page-level fallback still
+  ends in `notFound()` for absent/looped paths.
 
 ## Image SEO
 
 - `next/image` via `PostImage`, with responsive `sizes`, `loading="lazy"`, fixed
   aspect-ratio containers (limits CLS), and a neutral placeholder when no image.
-- Schema/OG images are absolute (`ogImageUrl`) and fall back to
-  `siteConfig.defaultOgImage`.
+- Schema/OG images are absolute (`ogImageUrl`), prefer an article's explicit OG
+  image, then featured image, then the admin-managed `SiteSetting.general.logo`,
+  and finally the static site fallback. Stored media dimensions are emitted when known;
+  Discover still requires genuinely large production uploads rather than invented dimensions.
 - Sample media use a committed placeholder (`/images/news-placeholder.svg`); the
   org logo is `/images/logo.svg` (replace with the real brand asset). Real
   uploads come from Storage in production — nothing is fabricated when Storage
@@ -173,5 +177,5 @@ This makes the site *eligible* — it does **not** guarantee inclusion.
 - Integration: sitemap/news/RSS feed data (published-only, 48h window),
   redirect chain + loop, robots policy per environment.
 - E2E: feeds are **parsed with the browser DOMParser** (not just 200-checked),
-  plus canonical/JSON-LD/OG/noindex, draft 404, redirect 308, loop 404, and
+  plus canonical/JSON-LD/OG/noindex, draft 404, redirect 301, loop 404, and
   no-admin-field-leak assertions.

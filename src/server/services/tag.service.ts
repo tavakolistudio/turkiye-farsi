@@ -10,6 +10,7 @@ import { generateUniqueSlug } from "@/lib/slug";
 import { createTagSchema, updateTagSchema } from "@/lib/validations/tag";
 import { buildOrderBy, paginationArgs, paginationMeta, type ListQuery } from "@/lib/api/pagination";
 import type { ServiceContext } from "./context";
+import { registerRedirect } from "./redirect.service";
 
 const SORTABLE = ["name", "createdAt", "updatedAt"] as const;
 
@@ -70,10 +71,16 @@ export const tagService = {
     if (input.slug && input.slug !== existing.slug) {
       slug = await generateUniqueSlug(input.slug, (s) => tagRepo.slugExists(s, id));
     }
-    const updated = await tagRepo.update(id, {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      slug,
-      ...(input.description !== undefined ? { description: input.description } : {}),
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.tag.update({ where: { id }, data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        slug,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      } });
+      if (slug !== existing.slug) {
+        await registerRedirect(tx, `/tag/${existing.slug}`, `/tag/${slug}`);
+      }
+      return row;
     });
     await auditLog({
       userId: ctx.actor.id,
@@ -145,18 +152,19 @@ export const tagService = {
     if (!source) throw ApiError.notFound("برچسب مبدأ یافت نشد.");
     if (!target) throw ApiError.notFound("برچسب مقصد یافت نشد.");
 
-    await prisma.$transaction([
-      prisma.$executeRaw`
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
         UPDATE "article_tags" at
         SET "tagId" = ${targetTagId}
         WHERE at."tagId" = ${sourceTagId}
           AND NOT EXISTS (
             SELECT 1 FROM "article_tags" x
             WHERE x."articleId" = at."articleId" AND x."tagId" = ${targetTagId}
-          )`,
-      prisma.articleTag.deleteMany({ where: { tagId: sourceTagId } }),
-      prisma.tag.update({ where: { id: sourceTagId }, data: { deletedAt: new Date() } }),
-    ]);
+          )`;
+      await tx.articleTag.deleteMany({ where: { tagId: sourceTagId } });
+      await tx.tag.update({ where: { id: sourceTagId }, data: { deletedAt: new Date() } });
+      await registerRedirect(tx, `/tag/${source.slug}`, `/tag/${target.slug}`);
+    });
 
     await auditLog({
       userId: ctx.actor.id,

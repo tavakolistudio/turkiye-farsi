@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/db";
 import { seoFeedService } from "@/server/services/seo-feed.service";
-import { redirectService } from "@/server/services/redirect.service";
+import { redirectService, registerRedirect } from "@/server/services/redirect.service";
 import robots from "@/app/robots";
 
 const PREFIX = `seo-${Date.now()}`;
@@ -10,13 +10,13 @@ let authorId = "";
 let categoryId = "";
 let publishedSlug = "";
 
-async function mkArticle(over: { title: string; slug: string; status?: string; publishedAt?: Date | null; deletedAt?: Date | null; isBreaking?: boolean }) {
+async function mkArticle(over: { title: string; slug: string; status?: string; publishedAt?: Date | null; deletedAt?: Date | null; isBreaking?: boolean; contentType?: "NEWS" | "ARTICLE" }) {
   const a = await prisma.article.create({
     data: {
       title: over.title,
       slug: over.slug,
       summary: `${PREFIX} summary`,
-      contentType: "NEWS",
+      contentType: over.contentType ?? "NEWS",
       status: (over.status ?? "PUBLISHED") as never,
       isBreaking: over.isBreaking ?? false,
       publishedAt: over.publishedAt ?? new Date(),
@@ -41,6 +41,7 @@ beforeAll(async () => {
   await mkArticle({ title: `${PREFIX} زمان‌بندی`, slug: `${PREFIX}-sched`, status: "SCHEDULED", publishedAt: new Date(Date.now() + 864e5) });
   await mkArticle({ title: `${PREFIX} آینده`, slug: `${PREFIX}-future`, status: "PUBLISHED", publishedAt: new Date(Date.now() + 864e5) });
   await mkArticle({ title: `${PREFIX} قدیمی`, slug: `${PREFIX}-old`, status: "PUBLISHED", publishedAt: new Date(Date.now() - 5 * 864e5) });
+  await mkArticle({ title: `${PREFIX} مقاله`, slug: `${PREFIX}-article`, contentType: "ARTICLE" });
   await mkArticle({ title: `${PREFIX} حذف`, slug: `${PREFIX}-del`, status: "PUBLISHED", deletedAt: new Date() });
 });
 
@@ -72,6 +73,7 @@ describe("news sitemap (48h window)", () => {
     expect(slugs).not.toContain(`${PREFIX}-future`);
     expect(slugs).not.toContain(`${PREFIX}-draft`);
     expect(slugs).not.toContain(`${PREFIX}-sched`);
+    expect(slugs).not.toContain(`${PREFIX}-article`);
   });
 });
 
@@ -123,6 +125,14 @@ describe("redirect resolver", () => {
     });
     const r = await redirectService.resolve(`/${PREFIX}/t1`);
     expect(r).toEqual({ to: `/${PREFIX}/t3`, permanent: false });
+  });
+
+  it("refuses a registered redirect that would close a loop", async () => {
+    await prisma.redirect.createMany({ data: [
+      { from: `/${PREFIX}/r1`, to: `/${PREFIX}/r2`, permanent: true },
+      { from: `/${PREFIX}/r2`, to: `/${PREFIX}/r3`, permanent: true },
+    ] });
+    await expect(registerRedirect(prisma, `/${PREFIX}/r3`, `/${PREFIX}/r1`)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 });
 

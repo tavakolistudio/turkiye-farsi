@@ -16,7 +16,7 @@ import { siteConfig } from "@/lib/site-config";
 import { formatJalali, toIso, toPersianDigits } from "@/lib/dates";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { absoluteUrl, canonicalUrl, ogImageUrl } from "@/lib/seo/urls";
-import { breadcrumbSchema, graph, newsArticleSchema, type PersonInput } from "@/lib/seo/jsonld";
+import { articleSchema, breadcrumbSchema, graph, type PersonInput } from "@/lib/seo/jsonld";
 import { siteSettingsService } from "@/server/services/site-settings.service";
 import { redirectOrNotFound } from "@/server/seo/redirect-or-404";
 
@@ -46,15 +46,19 @@ function authorPerson(author: {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const data = await load(slug);
+  const [data, publisher] = await Promise.all([load(slug), siteSettingsService.publisher()]);
   if (!data) return { title: "مطلب یافت نشد", robots: { index: false, follow: false } };
   const a = data.article;
+  const metaImage = a.ogImage ?? a.featuredImage;
   return buildMetadata({
     title: a.title,
     description: a.summary ?? a.subtitle ?? undefined,
     // A stored canonicalUrl (syndication) wins; otherwise the article's own URL.
     path: a.canonicalUrl ?? routes.article(a.slug),
-    image: a.featuredImage?.publicUrl,
+    image: metaImage?.publicUrl,
+    imageWidth: metaImage?.width,
+    imageHeight: metaImage?.height,
+    fallbackImage: publisher.logo,
     noindex: a.noindex,
     ogType: "article",
     publishedTime: a.publishedAt ? toIso(new Date(a.publishedAt)) : undefined,
@@ -91,13 +95,20 @@ export default async function ArticlePage({ params }: Props) {
   const publisher = await siteSettingsService.publisher();
   const selfUrl = canonicalUrl(a.canonicalUrl ?? routes.article(a.slug));
   const articleGraph = graph(
-    newsArticleSchema(
+    articleSchema(
       {
+        type: a.contentType === "NEWS" || a.contentType === "SHORT_NEWS" ? "NewsArticle" : "Article",
         headline: a.title,
         description: a.summary ?? a.subtitle ?? undefined,
         url: selfUrl,
-        images: a.featuredImage?.publicUrl ? [ogImageUrl(a.featuredImage.publicUrl)] : [],
-        datePublished: published ? toIso(published) : toIso(new Date()),
+        images: a.ogImage?.publicUrl
+          ? [ogImageUrl(a.ogImage.publicUrl)]
+          : a.featuredImage?.publicUrl
+            ? [ogImageUrl(a.featuredImage.publicUrl)]
+            : publisher.logo
+              ? [ogImageUrl(publisher.logo)]
+              : [],
+        datePublished: toIso(published!),
         dateModified: updated ? toIso(updated) : undefined,
         author: authorPerson(a.author),
         section: a.primaryCategory?.name,
