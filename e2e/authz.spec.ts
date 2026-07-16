@@ -1,7 +1,24 @@
 import { test, expect } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { ADMIN, AUTHOR, login } from "./helpers";
 
+const prisma = new PrismaClient();
+
 test.describe("Authorization", () => {
+  // Self-heal state pollution: the deactivation test below reactivates the
+  // author at the end, but an aborted run can leave the author inactive and
+  // fail every author login in later runs. Reset before the suite.
+  test.beforeAll(async () => {
+    await prisma.user.updateMany({
+      where: { email: AUTHOR.email },
+      data: { isActive: true },
+    });
+  });
+
+  test.afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
   test("Author is blocked from /admin/users on the server (not just hidden)", async ({
     page,
   }) => {

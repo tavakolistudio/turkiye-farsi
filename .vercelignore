@@ -1,0 +1,29 @@
+# Files NOT uploaded to Vercel builds. When this file exists Vercel uses it
+# instead of .gitignore, so keep it comprehensive.
+
+# Secrets — never upload (env vars are configured in the Vercel project)
+.env
+.env.*
+
+# Local embedded Postgres data & dev uploads
+.pgdata
+public/uploads
+
+# Dependencies & build output (Vercel installs/builds fresh)
+node_modules
+.next
+out
+build
+
+# Test artifacts
+test-results
+playwright-report
+coverage
+
+# Remote-agent workspace copies (full repo duplicates)
+.remote-worktree
+.remote-fetch
+
+# Vercel local link + VCS
+.vercel
+.git

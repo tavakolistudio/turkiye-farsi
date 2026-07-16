@@ -6,6 +6,10 @@ signed-in user; each section and action checks the user's permissions on the ser
 ## Sign in
 - Go to `/admin` → you're redirected to `/admin/login`.
 - The initial super admin comes from `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD`.
+  These are read by the **manual** seed (`npm run db:seed`), which is run once
+  after the first production deploy — the seed does **not** run during a Vercel
+  build. After first sign-in, change the password from `/admin/change-password`;
+  `INITIAL_ADMIN_PASSWORD` only affects a fresh seed thereafter.
 - Password reset: `/admin/forgot-password`; change password: `/admin/change-password`.
 
 ## Sections (Phase 4)
