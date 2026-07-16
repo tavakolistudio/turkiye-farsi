@@ -78,6 +78,8 @@ dashboard settings, not code.
 
 ## Vercel deployment (step by step)
 
+Git integration is expected to create Preview deployments for pull requests and Production deployments for merges to `main`.
+
 The repo is Vercel-ready (Next.js auto-detected; `postinstall: prisma generate`
 ensures a fresh Prisma Client on every build). To go live:
 
