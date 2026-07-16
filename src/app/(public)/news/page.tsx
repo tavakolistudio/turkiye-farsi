@@ -4,16 +4,23 @@ import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/content-enums";
-
-export const metadata = buildMetadata({
-  title: "همه اخبار",
-  description: "همه اخبار و مطالب ترکیه فارسی با امکان فیلتر بر اساس دسته‌بندی و نوع محتوا.",
-  path: routes.news(),
-});
+import { siteSettingsService } from "@/server/services/site-settings.service";
 
 type Props = {
   searchParams: Promise<{ page?: string; category?: string; type?: string; sort?: string }>;
 };
+
+export async function generateMetadata({ searchParams }: Props) {
+  const [sp, publisher] = await Promise.all([searchParams, siteSettingsService.publisher()]);
+  const page = Number(sp.page);
+  return buildMetadata({
+    title: "همه اخبار",
+    description: "همه اخبار و مطالب ترکیه فارسی با امکان فیلتر بر اساس دسته‌بندی و نوع محتوا.",
+    path: routes.news(),
+    canonicalParams: { page: Number.isInteger(page) && page > 1 ? page : undefined },
+    fallbackImage: publisher.logo,
+  });
+}
 
 const PAGE_SIZE = 12;
 const SORTS = [

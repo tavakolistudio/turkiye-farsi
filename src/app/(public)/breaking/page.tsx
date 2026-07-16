@@ -3,15 +3,22 @@ import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState, Pagination } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
 import { buildMetadata } from "@/lib/seo/metadata";
-
-export const metadata = buildMetadata({
-  title: "اخبار فوری",
-  description: "مهم‌ترین و فوری‌ترین اخبار ترکیه فارسی.",
-  path: routes.breaking(),
-});
+import { siteSettingsService } from "@/server/services/site-settings.service";
 
 type Props = { searchParams: Promise<{ page?: string }> };
 const PAGE_SIZE = 12;
+
+export async function generateMetadata({ searchParams }: Props) {
+  const [sp, publisher] = await Promise.all([searchParams, siteSettingsService.publisher()]);
+  const page = Number(sp.page);
+  return buildMetadata({
+    title: "اخبار فوری",
+    description: "مهم‌ترین و فوری‌ترین اخبار ترکیه فارسی.",
+    path: routes.breaking(),
+    canonicalParams: { page: Number.isInteger(page) && page > 1 ? page : undefined },
+    fallbackImage: publisher.logo,
+  });
+}
 
 export default async function BreakingPage({ searchParams }: Props) {
   const n = Number((await searchParams).page);

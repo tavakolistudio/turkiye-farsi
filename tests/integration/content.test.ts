@@ -28,6 +28,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.redirect.deleteMany({ where: { from: { contains: PREFIX } } });
   await prisma.articleSource.deleteMany({ where: { articleId: { in: created.articles } } });
   await prisma.articleMedia.deleteMany({ where: { articleId: { in: created.articles } } });
   await prisma.articleTag.deleteMany({ where: { articleId: { in: created.articles } } });
@@ -123,11 +124,16 @@ describe("Article + Source + Media relations", () => {
     expect((await prisma.article.findUnique({ where: { id: article.id } }))?.deletedAt).toBeNull();
   });
 
-  it("locks the slug after publication", async () => {
+  it("preserves the old URL when a published slug changes", async () => {
     const a = await articleService.create(ctx, { title: `${PREFIX} منتشر`, slug: `${PREFIX}-pub` });
     created.articles.push(a.id);
     await prisma.article.update({ where: { id: a.id }, data: { status: "PUBLISHED", publishedAt: new Date() } });
-    await expect(articleService.update(ctx, a.id, { slug: `${PREFIX}-new`, version: a.currentVersion })).rejects.toBeInstanceOf(ApiError);
+    const updated = await articleService.update(ctx, a.id, { slug: `${PREFIX}-new`, version: a.currentVersion });
+    expect(updated.slug).toBe(`${PREFIX}-new`);
+    expect(await prisma.redirect.findUnique({ where: { from: `/news/${PREFIX}-pub` } })).toMatchObject({
+      to: `/news/${PREFIX}-new`,
+      permanent: true,
+    });
   });
 });
 

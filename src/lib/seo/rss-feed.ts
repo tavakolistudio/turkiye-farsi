@@ -23,6 +23,7 @@ export async function renderRssFeed(opts: {
     author: r.authorName,
     category: r.categoryName,
     image: r.imageUrl ? absoluteUrl(r.imageUrl) : null,
+    imageType: r.imageMimeType,
   }));
   return buildRss(
     {

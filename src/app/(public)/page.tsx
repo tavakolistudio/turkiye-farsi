@@ -5,13 +5,18 @@ import { SectionHeading, EmptyState } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
 import { siteConfig } from "@/lib/site-config";
 import { buildMetadata } from "@/lib/seo/metadata";
+import { siteSettingsService } from "@/server/services/site-settings.service";
 
-export const metadata = buildMetadata({
-  title: `${siteConfig.name} — اخبار و راهنمای ایرانیان ترکیه`,
-  absoluteTitle: true,
-  description: siteConfig.description,
-  path: "/",
-});
+export async function generateMetadata() {
+  const publisher = await siteSettingsService.publisher();
+  return buildMetadata({
+    title: `${publisher.siteName || siteConfig.name} — اخبار و راهنمای ایرانیان ترکیه`,
+    absoluteTitle: true,
+    description: publisher.description || siteConfig.description,
+    path: "/",
+    fallbackImage: publisher.logo,
+  });
+}
 
 export default async function HomePage() {
   const home = await publicSiteService.getHomepage();

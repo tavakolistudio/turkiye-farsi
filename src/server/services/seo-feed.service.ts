@@ -10,7 +10,7 @@ import { publishedWhere } from "@/server/data/article.repo";
 
 export interface SitemapEntry {
   path: string;
-  lastModified: Date;
+  lastModified?: Date;
 }
 
 export interface NewsEntry {
@@ -28,6 +28,7 @@ export interface RssEntry {
   categoryName: string | null;
   categorySlug: string | null;
   imageUrl: string | null;
+  imageMimeType: string | null;
 }
 
 /** Google News only wants very recent news; 48h is the accepted window. */
@@ -50,13 +51,20 @@ export const seoFeedService = {
     });
     return rows.map((r) => ({
       path: `/news/${r.slug}`,
-      lastModified: r.updatedAt ?? r.publishedAt ?? new Date(),
+      lastModified: r.updatedAt ?? r.publishedAt ?? undefined,
     }));
   },
 
   async categories(): Promise<SitemapEntry[]> {
     const rows = await prisma.category.findMany({
-      where: { deletedAt: null, isActive: true },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        OR: [
+          { primaryArticles: { some: publishedWhere() } },
+          { articles: { some: { article: publishedWhere() } } },
+        ],
+      },
       orderBy: { order: "asc" },
       select: { slug: true, updatedAt: true },
     });
@@ -90,14 +98,16 @@ export const seoFeedService = {
       where: { isPublished: true, deletedAt: null },
       select: { slug: true, updatedAt: true },
     });
-    return rows.map((r) => ({ path: `/${r.slug}`, lastModified: r.updatedAt }));
+    const core: SitemapEntry[] = ["/", "/news", "/latest", "/breaking", "/most-viewed"]
+      .map((path) => ({ path }));
+    return [...core, ...rows.map((r) => ({ path: `/${r.slug}`, lastModified: r.updatedAt }))];
   },
 
   /** Published articles from the last 48h for the Google News sitemap. */
   async recentNews(limit = 1000): Promise<NewsEntry[]> {
     const since = new Date(Date.now() - NEWS_WINDOW_MS);
     const rows = await prisma.article.findMany({
-      where: publishedWhere({ publishedAt: { gte: since, lte: new Date(), not: null } }),
+      where: publishedWhere({ contentType: { in: ["NEWS", "SHORT_NEWS"] }, publishedAt: { gte: since, lte: new Date(), not: null } }),
       orderBy: { publishedAt: "desc" },
       take: limit,
       select: { slug: true, title: true, publishedAt: true },
@@ -113,7 +123,7 @@ export const seoFeedService = {
     if (opts.breaking) extra.isBreaking = true;
     if (opts.categorySlug) {
       const cat = await prisma.category.findFirst({
-        where: { slug: opts.categorySlug, deletedAt: null },
+        where: { slug: opts.categorySlug, deletedAt: null, isActive: true },
         select: { id: true },
       });
       if (!cat) return [];
@@ -130,7 +140,7 @@ export const seoFeedService = {
         publishedAt: true,
         author: { select: { name: true, profile: { select: { displayName: true } } } },
         primaryCategory: { select: { name: true, slug: true } },
-        featuredImage: { select: { publicUrl: true } },
+        featuredImage: { select: { publicUrl: true, mimeType: true } },
       },
     });
     return rows.map((r) => ({
@@ -141,7 +151,8 @@ export const seoFeedService = {
       authorName: r.author?.profile?.displayName || r.author?.name || null,
       categoryName: r.primaryCategory?.name ?? null,
       categorySlug: r.primaryCategory?.slug ?? null,
-      imageUrl: r.featuredImage?.publicUrl ?? null,
+      imageUrl: r.featuredImage?.mimeType.startsWith("image/") ? r.featuredImage.publicUrl : null,
+      imageMimeType: r.featuredImage?.mimeType.startsWith("image/") ? r.featuredImage.mimeType : null,
     }));
   },
 };

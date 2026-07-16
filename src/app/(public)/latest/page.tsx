@@ -5,15 +5,22 @@ import { CategoryChip } from "@/components/public/article-meta";
 import { routes } from "@/lib/public-links";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { formatJalali, toIso, toPersianDigits } from "@/lib/dates";
-
-export const metadata = buildMetadata({
-  title: "آخرین اخبار",
-  description: "جدیدترین اخبار و مطالب منتشرشده در ترکیه فارسی، به‌ترتیب زمان انتشار.",
-  path: routes.latest(),
-});
+import { siteSettingsService } from "@/server/services/site-settings.service";
 
 type Props = { searchParams: Promise<{ page?: string }> };
 const PAGE_SIZE = 20;
+
+export async function generateMetadata({ searchParams }: Props) {
+  const [sp, publisher] = await Promise.all([searchParams, siteSettingsService.publisher()]);
+  const page = Number(sp.page);
+  return buildMetadata({
+    title: "آخرین اخبار",
+    description: "جدیدترین اخبار و مطالب منتشرشده در ترکیه فارسی، به‌ترتیب زمان انتشار.",
+    path: routes.latest(),
+    canonicalParams: { page: Number.isInteger(page) && page > 1 ? page : undefined },
+    fallbackImage: publisher.logo,
+  });
+}
 
 export default async function LatestPage({ searchParams }: Props) {
   const n = Number((await searchParams).page);

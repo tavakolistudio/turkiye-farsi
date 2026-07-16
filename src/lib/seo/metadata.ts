@@ -17,6 +17,10 @@ export interface BuildMetaInput {
   /** Allowlisted query params kept on the canonical (e.g. pagination page). */
   canonicalParams?: Record<string, string | number | undefined>;
   image?: string | null;
+  /** Admin-managed fallback (normally SiteSetting.general.logo). */
+  fallbackImage?: string | null;
+  imageWidth?: number | null;
+  imageHeight?: number | null;
   noindex?: boolean;
   ogType?: "website" | "article";
   publishedTime?: string;
@@ -29,7 +33,7 @@ export interface BuildMetaInput {
 export function buildMetadata(input: BuildMetaInput): Metadata {
   const description = input.description?.trim() || siteConfig.description;
   const canonical = canonicalUrl(input.path, input.canonicalParams);
-  const image = ogImageUrl(input.image);
+  const image = ogImageUrl(input.image || input.fallbackImage);
 
   return {
     title: input.absoluteTitle ? { absolute: input.title } : input.title,
@@ -45,7 +49,13 @@ export function buildMetadata(input: BuildMetaInput): Metadata {
       url: canonical,
       siteName: siteConfig.name,
       locale: siteConfig.locale,
-      images: [{ url: image }],
+      images: [{
+        url: image,
+        alt: input.title,
+        ...(input.imageWidth && input.imageHeight
+          ? { width: input.imageWidth, height: input.imageHeight }
+          : {}),
+      }],
       ...(input.ogType === "article"
         ? {
             publishedTime: input.publishedTime,
@@ -60,7 +70,7 @@ export function buildMetadata(input: BuildMetaInput): Metadata {
       card: "summary_large_image",
       title: input.title,
       description,
-      images: [image],
+      images: [{ url: image, alt: input.title }],
     },
   };
 }

@@ -4,12 +4,7 @@ import { ArticleCard } from "@/components/public/article-card";
 import { Breadcrumb, EmptyState } from "@/components/public/ui";
 import { routes } from "@/lib/public-links";
 import { buildMetadata } from "@/lib/seo/metadata";
-
-export const metadata = buildMetadata({
-  title: "پربازدیدترین‌ها",
-  description: "پربازدیدترین مطالب ترکیه فارسی در بازه‌های زمانی مختلف.",
-  path: routes.mostViewed(),
-});
+import { siteSettingsService } from "@/server/services/site-settings.service";
 
 const RANGES: { key: MostViewedWindow; label: string }[] = [
   { key: "today", label: "امروز" },
@@ -19,6 +14,16 @@ const RANGES: { key: MostViewedWindow; label: string }[] = [
 ];
 
 type Props = { searchParams: Promise<{ range?: string }> };
+
+export async function generateMetadata() {
+  const publisher = await siteSettingsService.publisher();
+  return buildMetadata({
+    title: "پربازدیدترین‌ها",
+    description: "پربازدیدترین مطالب ترکیه فارسی در بازه‌های زمانی مختلف.",
+    path: routes.mostViewed(),
+    fallbackImage: publisher.logo,
+  });
+}
 
 export default async function MostViewedPage({ searchParams }: Props) {
   const raw = (await searchParams).range;

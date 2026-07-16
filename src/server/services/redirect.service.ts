@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
+import { ApiError } from "@/lib/api/errors";
 
 /**
  * Admin-managed redirects (e.g. after an article/category slug change). Resolves
@@ -9,6 +11,8 @@ import { prisma } from "@/lib/db";
  */
 
 const MAX_HOPS = 10;
+
+type RedirectClient = Pick<Prisma.TransactionClient, "redirect">;
 
 export interface ResolvedRedirect {
   to: string;
@@ -21,6 +25,37 @@ export function normalizeRedirectPath(path: string): string {
   if (!p.startsWith("/")) p = `/${p}`;
   if (p.length > 1) p = p.replace(/\/+$/, "");
   return p;
+}
+
+/** Store a redirect at its final destination, rejecting self-links and cycles. */
+export async function registerRedirect(
+  db: RedirectClient,
+  from: string,
+  to: string,
+  permanent = true,
+): Promise<void> {
+  const source = normalizeRedirectPath(from);
+  let destination = normalizeRedirectPath(to);
+  const visited = new Set<string>([source]);
+
+  for (let hop = 0; hop < MAX_HOPS; hop++) {
+    if (visited.has(destination)) {
+      throw ApiError.validation("مسیر تغییرنشانی باعث ایجاد حلقه می‌شود.");
+    }
+    visited.add(destination);
+    const next = await db.redirect.findUnique({ where: { from: destination }, select: { to: true } });
+    if (!next) break;
+    destination = normalizeRedirectPath(next.to);
+    if (hop === MAX_HOPS - 1) {
+      throw ApiError.validation("زنجیره تغییرنشانی بیش از حد طولانی است.");
+    }
+  }
+
+  await db.redirect.upsert({
+    where: { from: source },
+    create: { from: source, to: destination, permanent },
+    update: { to: destination, permanent },
+  });
 }
 
 export const redirectService = {
