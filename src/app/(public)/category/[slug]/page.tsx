@@ -92,7 +92,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       {rows.length ? (
         <>
           <div className="editorial-list-grid">
-            {rows.map((a) => <ArticleCard key={a.id} article={a} variant="horizontal" />)}
+            {rows.map((a, index) => <ArticleCard key={a.id} article={a} variant="horizontal" priority={index === 0} />)}
           </div>
           <Pagination page={page} totalPages={totalPages} basePath={routes.category(category.slug)} />
         </>

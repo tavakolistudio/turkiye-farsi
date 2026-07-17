@@ -38,10 +38,26 @@ export function buildMetadata(input: BuildMetaInput): Metadata {
   return {
     title: input.absoluteTitle ? { absolute: input.title } : input.title,
     description,
-    alternates: { canonical },
+    alternates: {
+      canonical,
+      languages: {
+        "fa-IR": canonical,
+        "x-default": canonical,
+      },
+    },
     robots: input.noindex
       ? { index: false, follow: true }
-      : { index: true, follow: true },
+      : {
+          index: true,
+          follow: true,
+          googleBot: {
+            index: true,
+            follow: true,
+            "max-image-preview": "large",
+            "max-snippet": -1,
+            "max-video-preview": -1,
+          },
+        },
     openGraph: {
       type: input.ogType ?? "website",
       title: input.title,

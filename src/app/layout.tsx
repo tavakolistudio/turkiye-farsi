@@ -27,7 +27,10 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   applicationName: siteConfig.name,
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+    languages: { "fa-IR": "/", "x-default": "/" },
+  },
   openGraph: {
     type: "website",
     locale: siteConfig.locale,
@@ -36,7 +39,17 @@ export const metadata: Metadata = {
     description: siteConfig.description,
   },
   twitter: { card: "summary_large_image" },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default async function RootLayout({

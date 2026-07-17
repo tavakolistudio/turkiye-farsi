@@ -9,9 +9,24 @@
  */
 export function buildContentSecurityPolicy(
   nonce: string,
-  opts: { isDev: boolean; supabaseUrl?: string },
+  opts: {
+    isDev: boolean;
+    supabaseUrl?: string;
+    gaEnabled?: boolean;
+    plausibleScriptUrl?: string;
+  },
 ): string {
-  const { isDev, supabaseUrl } = opts;
+  const { isDev, supabaseUrl, gaEnabled, plausibleScriptUrl } = opts;
+
+  let plausibleOrigin = "";
+  if (plausibleScriptUrl) {
+    try {
+      const url = new URL(plausibleScriptUrl);
+      if (url.protocol === "https:") plausibleOrigin = url.origin;
+    } catch {
+      // Invalid optional analytics configuration is ignored safely.
+    }
+  }
 
   const scriptSrc = [
     "'self'",
@@ -19,11 +34,16 @@ export function buildContentSecurityPolicy(
     "'strict-dynamic'",
     // Next.js dev / React Refresh require eval.
     isDev ? "'unsafe-eval'" : "",
+    gaEnabled ? "https://www.googletagmanager.com" : "",
+    plausibleOrigin,
   ].filter(Boolean);
 
   const connectSrc = [
     "'self'",
     supabaseUrl || "",
+    gaEnabled ? "https://www.google-analytics.com" : "",
+    gaEnabled ? "https://region1.google-analytics.com" : "",
+    plausibleOrigin,
     // Dev websockets for HMR.
     isDev ? "ws:" : "",
     isDev ? "http://localhost:*" : "",

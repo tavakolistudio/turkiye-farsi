@@ -1,7 +1,3 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { Search } from "lucide-react";
 
 /**
@@ -17,20 +13,11 @@ export function SearchBox({
   autoFocus?: boolean;
   defaultValue?: string;
 }) {
-  const router = useRouter();
-  const [value, setValue] = useState(defaultValue);
-
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const q = value.trim();
-    if (q.length < 2) return;
-    router.push(`/search?q=${encodeURIComponent(q)}`);
-  }
-
   return (
     <form
       role="search"
-      onSubmit={onSubmit}
+      action="/search"
+      method="get"
       className={variant === "header" ? "editorial-search-box hidden md:block" : "editorial-search-box relative w-full"}
     >
       <label htmlFor={`search-${variant}`} className="sr-only">
@@ -40,8 +27,8 @@ export function SearchBox({
         id={`search-${variant}`}
         type="search"
         name="q"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        defaultValue={defaultValue}
+        minLength={2}
         autoFocus={autoFocus}
         placeholder="جستجو…"
         className={`w-full rounded-md border border-border bg-background py-2 pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${

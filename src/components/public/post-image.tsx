@@ -32,6 +32,7 @@ export function PostImage({
       </div>
     );
   }
+  const unoptimized = !isOptimizable(src);
   return (
     <Image
       src={src}
@@ -40,8 +41,21 @@ export function PostImage({
       sizes={sizes}
       loading={priority ? "eager" : undefined}
       fetchPriority={priority ? "high" : undefined}
-      unoptimized
+      unoptimized={unoptimized}
       className={`object-cover ${className}`}
     />
   );
+}
+
+function isOptimizable(src: string): boolean {
+  if (src.startsWith("/") && !src.startsWith("//")) return true;
+  const storage = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!storage) return false;
+  try {
+    const sourceUrl = new URL(src);
+    const storageUrl = new URL(storage);
+    return sourceUrl.protocol === "https:" && sourceUrl.origin === storageUrl.origin && sourceUrl.pathname.startsWith("/storage/v1/object/public/");
+  } catch {
+    return false;
+  }
 }
