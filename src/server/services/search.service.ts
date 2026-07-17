@@ -21,6 +21,12 @@ export const searchQuerySchema = z.object({
     .max(200)
     .regex(/^[a-z0-9؀-ۿ-]+$/u)
     .optional(),
+  author: z
+    .string()
+    .trim()
+    .max(200)
+    .regex(/^[a-z0-9\u0600-\u06ff-]+$/u)
+    .optional(),
   from: z.string().trim().max(20).optional(),
   to: z.string().trim().max(20).optional(),
 });
@@ -34,9 +40,9 @@ function likePattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
 }
 
-function parseDate(value: string | undefined): Date | null {
+function parseDate(value: string | undefined, endOfDay = false): Date | null {
   if (!value) return null;
-  const d = new Date(value);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z` : value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -55,19 +61,40 @@ export const searchService = {
     if (input.category) {
       filters.push(Prisma.sql`
         AND EXISTS (
-          SELECT 1 FROM article_categories ac
-          JOIN categories c ON c.id = ac."categoryId"
-          WHERE ac."articleId" = a.id AND c.slug = ${input.category} AND c."deletedAt" IS NULL
+          SELECT 1 FROM categories c
+          WHERE c.slug = ${input.category} AND c."deletedAt" IS NULL
+            AND (
+              a."primaryCategoryId" = c.id
+              OR EXISTS (
+                SELECT 1 FROM article_categories ac
+                WHERE ac."articleId" = a.id AND ac."categoryId" = c.id
+              )
+            )
+        )`);
+    }
+    if (input.author) {
+      filters.push(Prisma.sql`
+        AND EXISTS (
+          SELECT 1 FROM profiles p
+          WHERE p."userId" = a."authorId" AND p.slug = ${input.author} AND p."isPublic" = true
         )`);
     }
     const from = parseDate(input.from);
     if (from) filters.push(Prisma.sql`AND a."publishedAt" >= ${from}`);
-    const to = parseDate(input.to);
+    const to = parseDate(input.to, true);
     if (to) filters.push(Prisma.sql`AND a."publishedAt" <= ${to}`);
     const filterSql = filters.length ? Prisma.join(filters, " ") : Prisma.empty;
 
+    const documentSql = Prisma.sql`to_tsvector(
+      'simple',
+      coalesce(a.title, '') || ' ' || coalesce(a.subtitle, '') || ' ' ||
+      coalesce(a.summary, '') || ' ' || coalesce(a."bodyJson"::text, '')
+    )`;
+    const querySql = Prisma.sql`websearch_to_tsquery('simple', ${query})`;
+
     const matchSql = Prisma.sql`(
-      a.title ILIKE ${like}
+      ${documentSql} @@ ${querySql}
+      OR a.title ILIKE ${like}
       OR a.subtitle ILIKE ${like}
       OR a.summary ILIKE ${like}
       OR a."bodyJson"::text ILIKE ${like}
@@ -100,7 +127,8 @@ export const searchService = {
     const [ranked, countRows] = await Promise.all([
       prisma.$queryRaw<{ id: string }[]>`
         SELECT a.id,
-          ( (CASE WHEN a.title ILIKE ${like} THEN 5 ELSE 0 END)
+          ( ts_rank_cd(${documentSql}, ${querySql}, 32) * 10
+          + (CASE WHEN a.title ILIKE ${like} THEN 5 ELSE 0 END)
           + (CASE WHEN a.subtitle ILIKE ${like} THEN 3 ELSE 0 END)
           + (CASE WHEN a.summary ILIKE ${like} THEN 3 ELSE 0 END)
           + (CASE WHEN a."bodyJson"::text ILIKE ${like} THEN 1 ELSE 0 END) ) AS score

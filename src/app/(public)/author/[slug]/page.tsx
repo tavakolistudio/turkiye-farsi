@@ -90,7 +90,7 @@ export default async function AuthorPage({ params, searchParams }: Props) {
       {rows.length ? (
         <>
           <div className="editorial-three-grid">
-            {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
+            {rows.map((a, index) => <ArticleCard key={a.id} article={a} priority={index === 0} />)}
           </div>
           <Pagination page={page} totalPages={totalPages} basePath={routes.author(profile.slug)} />
         </>

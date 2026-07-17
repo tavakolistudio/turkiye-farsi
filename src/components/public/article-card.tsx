@@ -40,7 +40,7 @@ export function ArticleCard({
       <article className="editorial-card editorial-card-horizontal">
         {article.featuredImage?.publicUrl && (
           <Link href={href} className="editorial-card-media relative" tabIndex={-1} aria-hidden="true">
-            <PostImage src={article.featuredImage.publicUrl} alt="" sizes="(max-width: 640px) 34vw, 260px" />
+            <PostImage src={article.featuredImage.publicUrl} alt="" sizes="(max-width: 640px) 34vw, 260px" priority={priority} />
           </Link>
         )}
         <div className="editorial-card-copy">

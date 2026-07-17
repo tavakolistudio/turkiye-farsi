@@ -174,6 +174,19 @@ export const publicSiteService = {
     });
   }),
 
+  /** Public authors with published work, used by public search filters only. */
+  searchAuthors: cache(async () => {
+    return prisma.profile.findMany({
+      where: {
+        isPublic: true,
+        user: { deletedAt: null, isActive: true, articles: { some: publishedWhere() } },
+      },
+      orderBy: { displayName: "asc" },
+      take: 100,
+      select: { slug: true, displayName: true, user: { select: { name: true } } },
+    });
+  }),
+
   async latest(skip: number, take: number) {
     return articleRepo.listCards({ orderBy: { publishedAt: "desc" }, skip, take });
   },

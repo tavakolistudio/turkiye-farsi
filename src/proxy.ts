@@ -35,6 +35,10 @@ export async function proxy(req: NextRequest) {
   const csp = buildContentSecurityPolicy(nonce, {
     isDev,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    gaEnabled: !!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+    plausibleScriptUrl: process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
+      ? process.env.NEXT_PUBLIC_PLAUSIBLE_SCRIPT_URL || "https://plausible.io/js/script.js"
+      : undefined,
   });
 
   // Forward the nonce + CSP to the app so Next (and next-themes) can nonce

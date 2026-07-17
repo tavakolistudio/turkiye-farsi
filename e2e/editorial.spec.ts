@@ -73,22 +73,28 @@ test("complete Phase 5 editorial scenario", async ({ browser }) => {
   const publicList = await publicResponse.json() as { data: { id: string }[] };
   expect(publicList.data.map((item) => item.id)).toContain(article.id);
 
-  const revisionResponse = await editorPage.request.get(`/api/v1/admin/articles/${article.id}/revisions`);
+  // Stop the edit-page autosave timers before the version-sensitive restore.
+  // Requests continue through the same authenticated browser context.
+  await authorPage.close();
+  await editorPage.close();
+  const editorRequest = editorContext.request;
+
+  const revisionResponse = await editorRequest.get(`/api/v1/admin/articles/${article.id}/revisions`);
   const revisions = await revisionResponse.json() as { data: { id: string }[] };
   expect(revisions.data.length).toBeGreaterThanOrEqual(4);
-  const detailResponse = await editorPage.request.get(`/api/v1/admin/articles/${article.id}`);
+  const detailResponse = await editorRequest.get(`/api/v1/admin/articles/${article.id}`);
   const detail = await detailResponse.json() as { data: { currentVersion: number } };
-  const restore = await editorPage.request.post(`/api/v1/admin/articles/${article.id}/revisions/${revisions.data.at(-1)!.id}/restore`, {
+  const restore = await editorRequest.post(`/api/v1/admin/articles/${article.id}/revisions/${revisions.data.at(-1)!.id}/restore`, {
     data: { version: detail.data.currentVersion },
   });
   expect(restore.ok()).toBeTruthy();
 
-  const correctionResponse = await editorPage.request.post(`/api/v1/admin/articles/${article.id}/corrections`, {
+  const correctionResponse = await editorRequest.post(`/api/v1/admin/articles/${article.id}/corrections`, {
     data: { title: "اصلاحیه E2E", description: "یک عبارت برای شفافیت بیشتر اصلاح شد.", correctionType: "MINOR", order: 1 },
   });
   expect(correctionResponse.ok()).toBeTruthy();
   const correction = await correctionResponse.json() as { data: { id: string } };
-  const publishCorrection = await editorPage.request.post(`/api/v1/admin/articles/${article.id}/corrections/${correction.data.id}/publish`);
+  const publishCorrection = await editorRequest.post(`/api/v1/admin/articles/${article.id}/corrections/${correction.data.id}/publish`);
   expect(publishCorrection.ok()).toBeTruthy();
 
   await authorContext.close();

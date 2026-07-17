@@ -170,6 +170,36 @@ describe("search", () => {
     const result = await searchService.search({ q: `${PREFIX} پیش‌نویس`, page: 1, sort: "relevance" });
     expect(result.rows.every((r) => r.slug === publishedSlug || !r.slug.includes("پیش"))).toBe(true);
   });
+
+  it("filters published results by public author, category and date", async () => {
+    const result = await searchService.search({
+      q: `${PREFIX} خلاصه`,
+      page: 1,
+      sort: "newest",
+      author: adminSlug,
+      category: categorySlug,
+      from: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+      to: new Date().toISOString().slice(0, 10),
+    });
+    expect(result.rows.map((row) => row.slug)).toEqual([publishedSlug]);
+  });
+
+  it("returns no rows for a non-matching author filter", async () => {
+    const result = await searchService.search({
+      q: `${PREFIX} خلاصه`,
+      page: 1,
+      sort: "relevance",
+      author: "no-such-public-author",
+    });
+    expect(result.total).toBe(0);
+  });
+
+  it("provides only public authors with published work for filters", async () => {
+    const authors = await publicSiteService.searchAuthors();
+    const selected = authors.find((author) => author.slug === adminSlug);
+    expect(selected).toBeTruthy();
+    expect(selected).not.toHaveProperty("publicEmail");
+  });
 });
 
 describe("view tracking", () => {

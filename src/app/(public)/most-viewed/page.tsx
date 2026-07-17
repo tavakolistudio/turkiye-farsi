@@ -53,7 +53,7 @@ export default async function MostViewedPage({ searchParams }: Props) {
 
       {rows.length ? (
         <div className="editorial-three-grid">
-          {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
+          {rows.map((a, index) => <ArticleCard key={a.id} article={a} priority={index === 0} />)}
         </div>
       ) : (
         <EmptyState

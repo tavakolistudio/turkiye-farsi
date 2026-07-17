@@ -155,6 +155,8 @@ describe("robots policy", () => {
     const rule = Array.isArray(r.rules) ? r.rules[0] : r.rules;
     expect(rule?.allow).toBe("/");
     expect(String(rule?.disallow)).toContain("/admin");
+    expect(String(rule?.disallow)).toContain("fbclid");
+    expect(String(rule?.disallow)).toContain("gclid");
     expect(Array.isArray(r.sitemap) ? r.sitemap.join(" ") : String(r.sitemap)).toContain("/sitemap.xml");
     if (prev === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = prev;
