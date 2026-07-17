@@ -4,43 +4,42 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Design system — "Modern Editorial News"
- * Off-white canvas, near-black text, deep red for breaking news,
- * dark blue for official links, warm yellow for limited warnings.
+ * Design system — "Newswire" (سفید / مشکی / قرمز)
+ * Pure white canvas, near-black ink, a single signature red used for links,
+ * kickers, breaking news, callouts and all accents. No blue, no yellow, no cream —
+ * the disciplined 3-colour palette of a modern global news agency.
  * All colors are HSL channel triplets so we can use Tailwind's alpha syntax.
  */
 :root {
-  /* Phase 8 editorial brand tokens — exact source colors. */
-  --color-newsprint-cream: #f8f5ec;
+  /* Brand primitives. */
+  --color-newsprint-cream: #ffffff;
   --color-ink-black: #111111;
   --color-paper-white: #ffffff;
-  --color-rule: #d8d4ca;
-  --color-muted-text: #66645f;
-  --color-brand-yellow: #f4c430;
-  --color-breaking-red: #a61b1b;
-  --color-official-blue: #163a5f;
+  --color-rule: #e2e2e2;
+  --color-muted-text: #5c5c5c;
+  --color-signal-red: #c8102e;
 
   /* HSL channels preserve Tailwind alpha utilities while matching the palette. */
-  --background: 45 46.154% 94.902%;
-  --foreground: 0 0% 6.667%;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 7%;
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 6.667%;
-  --muted: 43 24% 92%;
-  --muted-foreground: 42.857 3.626% 38.627%;
-  --border: 42.857 15.217% 81.961%;
-  --input: 42.857 15.217% 81.961%;
-  --ring: 210.37 62.4% 22.941%;
-  --primary: 210.37 62.4% 22.941%;
+  --card-foreground: 0 0% 7%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 38%;
+  --border: 0 0% 88%;
+  --input: 0 0% 86%;
+  --ring: 351 84% 43%;
+  --primary: 351 84% 43%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 43 24% 92%;
-  --secondary-foreground: 0 0% 6.667%;
-  --accent: 45.405 90.244% 57.255%;
-  --accent-foreground: 0 0% 6.667%;
-  --breaking: 0 71.963% 37.843%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 7%;
+  --accent: 351 84% 43%;
+  --accent-foreground: 0 0% 100%;
+  --breaking: 351 86% 45%;
   --breaking-foreground: 0 0% 100%;
-  --warning: 45.405 90.244% 57.255%;
-  --warning-foreground: 0 0% 6.667%;
-  --destructive: 0 71.963% 37.843%;
+  --warning: 351 84% 43%;
+  --warning-foreground: 0 0% 100%;
+  --destructive: 351 84% 43%;
   --destructive-foreground: 0 0% 100%;
 
   --font-headline: var(--font-estedad), var(--font-vazirmatn), sans-serif;
@@ -86,32 +85,32 @@
 .editorial-atom { border: 1px dashed var(--primary); border-radius: .5rem; margin-block: 1rem; padding: 1rem; }
 
 .dark {
-  --background: 60 4.545% 8.627%;
-  --foreground: 45 35.294% 93.333%;
-  --card: 40 10% 11.765%;
-  --card-foreground: 45 35.294% 93.333%;
-  --muted: 40 7% 16%;
-  --muted-foreground: 41.538 7.429% 64.118%;
-  --border: 45 7.273% 21.569%;
-  --input: 45 7.273% 21.569%;
-  --ring: 210 70% 60%;
+  --background: 0 0% 7%;
+  --foreground: 0 0% 96%;
+  --card: 0 0% 11%;
+  --card-foreground: 0 0% 96%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 64%;
+  --border: 0 0% 22%;
+  --input: 0 0% 24%;
+  --ring: 351 84% 58%;
 
-  --primary: 210 70% 62%;
-  --primary-foreground: 220 30% 10%;
+  --primary: 351 84% 58%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 40 7% 16%;
-  --secondary-foreground: 43 35% 93%;
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 0 0% 96%;
 
-  --accent: 45 90% 57%;
-  --accent-foreground: 0 0% 7%;
+  --accent: 351 84% 58%;
+  --accent-foreground: 0 0% 100%;
 
-  --breaking: 0 72% 52%;
+  --breaking: 351 86% 56%;
   --breaking-foreground: 0 0% 100%;
 
-  --warning: 42 92% 56%;
-  --warning-foreground: 30 40% 12%;
+  --warning: 351 84% 58%;
+  --warning-foreground: 0 0% 100%;
 
-  --destructive: 0 72% 52%;
+  --destructive: 351 84% 56%;
   --destructive-foreground: 0 0% 100%;
 }
 
@@ -228,7 +227,7 @@ body {
 .public-pagination a { padding: .6rem .85rem; border: 1px solid hsl(var(--border)); border-radius: .5rem; }
 .public-ad { margin-top: 2rem; padding: .5rem; text-align: center; border: 1px solid hsl(var(--border)); }
 .public-ad img { max-width: 100%; height: auto; }
-.public-footer { margin-top: auto; padding-top: 3rem; color: hsl(var(--muted-foreground)); background: hsl(220 18% 10%); }
+.public-footer { margin-top: auto; padding-top: 3rem; color: hsl(var(--muted-foreground)); background: hsl(0 0% 8%); }
 .public-footer-grid { width: min(1180px, calc(100% - 2rem)); margin-inline: auto; display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 2rem; }
 .public-footer h2 { margin-bottom: 1rem; color: white; font-size: 1rem; font-weight: 800; }
 .public-footer p { line-height: 2; }
@@ -312,7 +311,7 @@ body { overflow-x: clip; font-family: var(--font-body); }
 h1, h2, h3, h4, h5, h6, .font-headline { font-family: var(--font-headline); }
 .editorial-shell { width: min(var(--container-width), calc(100% - (2 * var(--spacing-gutter)))); margin-inline: auto; }
 
-.editorial-header { position: relative; z-index: 40; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
+.editorial-header { position: relative; z-index: 40; border-top: 4px solid hsl(var(--breaking)); border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
 .editorial-utility { border-bottom: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); font-size: .75rem; }
 .editorial-utility > div { min-height: 2.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .editorial-utility nav { display: flex; align-items: center; gap: 1.1rem; }
