@@ -56,6 +56,9 @@ export const publicSiteService = {
       editorPicks,
       mostViewed,
       categories,
+      guides,
+      videos,
+      impactStory,
     ] = await Promise.all([
       // Hero + sub-features: prefer flagged hero, then fill with recent.
       articleRepo.cards({}, 8, [{ isHero: "desc" }, { publishedAt: "desc" }] as never),
@@ -66,6 +69,26 @@ export const publicSiteService = {
       prisma.category.findMany({
         where: { slug: { in: CATEGORY_RAILS }, deletedAt: null, isActive: true },
         select: { id: true, name: true, slug: true },
+      }),
+      articleRepo.cards({ contentType: "GUIDE" }, 4),
+      articleRepo.cards({ contentType: "VIDEO" }, 4),
+      prisma.article.findFirst({
+        where: publishedWhere({
+          OR: [
+            { whyItMatters: { not: null } },
+            { whoIsAffected: { not: null } },
+            { whatToDo: { not: null } },
+          ],
+        }),
+        orderBy: { publishedAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          whyItMatters: true,
+          whoIsAffected: true,
+          whatToDo: true,
+        },
       }),
     ]);
 
@@ -92,6 +115,9 @@ export const publicSiteService = {
       latest: latest.filter((a) => a.id !== hero?.id).slice(0, 6),
       editorPicks,
       mostViewed,
+      guides,
+      videos,
+      impactStory,
       categoryRails: rails.filter((r) => r.articles.length > 0),
     };
   },
@@ -113,7 +139,7 @@ export const publicSiteService = {
       },
       orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
       take: 8,
-      select: { id: true, title: true, url: true, articleId: true },
+      select: { id: true, title: true, url: true, articleId: true, createdAt: true },
     });
 
     const ids = items.map((i) => i.articleId).filter((id): id is string => !!id);
@@ -130,6 +156,7 @@ export const publicSiteService = {
       id: i.id,
       title: i.title,
       url: i.url,
+      createdAt: i.createdAt,
       articleSlug: i.articleId ? slugMap.get(i.articleId) ?? null : null,
     }));
   },

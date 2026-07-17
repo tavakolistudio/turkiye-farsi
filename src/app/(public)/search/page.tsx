@@ -79,11 +79,11 @@ export default async function SearchPage({ searchParams }: Props) {
   const currentCategory = parsed.success ? parsed.data.category : undefined;
 
   return (
-    <div>
+    <div className="editorial-search-page">
       <Breadcrumb items={[{ label: "جستجو" }]} />
-      <h1 className="mb-6 text-2xl font-extrabold">جستجو</h1>
+      <header className="editorial-listing-header"><p>آرشیو رسانه</p><h1>جستجو</h1></header>
 
-      <form method="get" role="search" className="mb-8 grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-4">
+      <form method="get" role="search" className="editorial-search-form">
         <div className="sm:col-span-2">
           <label htmlFor="s-q" className="mb-1 block text-xs font-medium">عبارت جستجو</label>
           <input id="s-q" type="search" name="q" defaultValue={rawQuery} placeholder="جستجو…" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />

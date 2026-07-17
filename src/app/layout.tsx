@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Vazirmatn } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { siteConfig } from "@/lib/site-config";
@@ -9,6 +10,13 @@ const vazirmatn = Vazirmatn({
   variable: "--font-vazirmatn",
   subsets: ["arabic", "latin"],
   display: "swap",
+});
+
+const estedad = localFont({
+  src: "./fonts/estedad-variable.woff2",
+  variable: "--font-estedad",
+  display: "swap",
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {
@@ -42,8 +50,9 @@ export default async function RootLayout({
     <html
       lang="fa"
       dir="rtl"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
-      className={`${vazirmatn.variable} h-full`}
+      className={`${vazirmatn.variable} ${estedad.variable} h-full`}
     >
       <body className="min-h-full flex flex-col antialiased">
         <ThemeProvider

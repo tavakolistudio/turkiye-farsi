@@ -31,9 +31,9 @@ export default async function MostViewedPage({ searchParams }: Props) {
   const rows = await publicSiteService.mostViewed(range, 24);
 
   return (
-    <div>
+    <div className="editorial-listing-page">
       <Breadcrumb items={[{ label: "پربازدیدترین‌ها" }]} />
-      <h1 className="mb-4 text-2xl font-extrabold">پربازدیدترین‌ها</h1>
+      <h1 className="editorial-standalone-title">پربازدیدترین‌ها</h1>
 
       <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="بازه زمانی">
         {RANGES.map((r) => (
@@ -52,7 +52,7 @@ export default async function MostViewedPage({ searchParams }: Props) {
       </div>
 
       {rows.length ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="editorial-three-grid">
           {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
         </div>
       ) : (

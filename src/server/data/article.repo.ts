@@ -56,7 +56,7 @@ export const publicArticleSelect = {
   },
   categories: { select: { category: { select: { name: true, slug: true } }, isPrimary: true } },
   sources: {
-    select: { sourceUrl: true, sourceTitle: true, isPrimary: true, source: { select: { name: true, slug: true } } },
+    select: { sourceUrl: true, sourceTitle: true, accessedAt: true, isPrimary: true, source: { select: { name: true, slug: true } } },
   },
   corrections: {
     where: { isPublished: true, deletedAt: null },

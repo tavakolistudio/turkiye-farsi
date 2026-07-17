@@ -61,18 +61,19 @@ export default async function TagPage({ params, searchParams }: Props) {
   );
 
   return (
-    <div>
+    <div className="editorial-listing-page">
       <JsonLd data={crumbs} />
       <Breadcrumb items={[{ label: `برچسب: ${tag.name}` }]} />
-      <header className="mb-6 border-b border-border pb-4">
-        <h1 className="text-2xl font-extrabold">#{tag.name}</h1>
+      <header className="editorial-listing-header">
+        <p>برچسب</p>
+        <h1>#{tag.name}</h1>
         {tag.description && <p className="mt-2 text-muted-foreground">{tag.description}</p>}
       </header>
 
       {rows.length ? (
         <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
+          <div className="editorial-list-grid">
+            {rows.map((a) => <ArticleCard key={a.id} article={a} variant="horizontal" />)}
           </div>
           <Pagination page={page} totalPages={totalPages} basePath={routes.tag(tag.slug)} />
         </>

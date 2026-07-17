@@ -63,7 +63,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   );
 
   return (
-    <div>
+    <div className="editorial-listing-page">
       <JsonLd data={crumbs} />
       <Breadcrumb
         items={[
@@ -72,14 +72,15 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         ]}
       />
 
-      <header className="mb-6 border-b border-border pb-4">
-        <h1 className="text-2xl font-extrabold">{category.name}</h1>
-        {category.description && <p className="mt-2 text-muted-foreground">{category.description}</p>}
+      <header className="editorial-listing-header">
+        <p>دسته‌بندی</p>
+        <h1>{category.name}</h1>
+        {category.description && <div>{category.description}</div>}
         {category.children.length > 0 && (
           <ul className="mt-4 flex flex-wrap gap-2">
             {category.children.map((c) => (
               <li key={c.slug}>
-                <Link href={routes.category(c.slug)} className="rounded-full border border-border px-3 py-1 text-sm hover:bg-accent">
+                <Link href={routes.category(c.slug)} className="editorial-taxonomy-link">
                   {c.name}
                 </Link>
               </li>
@@ -90,8 +91,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
       {rows.length ? (
         <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {rows.map((a) => <ArticleCard key={a.id} article={a} />)}
+          <div className="editorial-list-grid">
+            {rows.map((a) => <ArticleCard key={a.id} article={a} variant="horizontal" />)}
           </div>
           <Pagination page={page} totalPages={totalPages} basePath={routes.category(category.slug)} />
         </>
