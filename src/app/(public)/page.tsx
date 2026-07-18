@@ -22,17 +22,29 @@ export default async function HomePage() {
   const home = await publicSiteService.getHomepage();
   const hasAnything = home.hero || home.latest.length || home.editorPicks.length || home.categoryRails.length;
 
+  // The masthead is the visual title, so the document H1 is visually hidden —
+  // it still gives crawlers and screen readers a single, descriptive heading.
+  const pageHeading = (
+    <h1 className="sr-only">
+      {siteConfig.name} — اخبار ترکیه، اقامت، اقتصاد و راهنمای زندگی فارسی‌زبانان
+    </h1>
+  );
+
   if (!hasAnything) {
     return (
-      <EmptyState
-        title="هنوز خبری منتشر نشده است"
-        description="به‌زودی جدیدترین اخبار و مطالب ترکیه فارسی در این صفحه نمایش داده می‌شود."
-      />
+      <>
+        {pageHeading}
+        <EmptyState
+          title="هنوز خبری منتشر نشده است"
+          description="به‌زودی جدیدترین اخبار و مطالب ترکیه فارسی در این صفحه نمایش داده می‌شود."
+        />
+      </>
     );
   }
 
   return (
     <div className="editorial-home">
+      {pageHeading}
       {home.hero && (
         <section className="homepage-lead-grid" aria-label="مهم‌ترین خبرها">
           <div className="homepage-lead"><HeroLeadStory article={home.hero} /></div>

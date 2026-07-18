@@ -22,22 +22,40 @@ export default function robots(): MetadataRoute.Robots {
     return { rules: [{ userAgent: "*", disallow: "/" }] };
   }
 
+  const disallow = [
+    "/admin",
+    "/admin/",
+    "/api/",
+    "/preview",
+    "/preview/",
+    "/search",
+    "/search/",
+    "/*?*utm_",
+  ];
+
+  // Answer-engine crawlers. Listing them explicitly (rather than relying on the
+  // `*` rule) is what AEO audits look for, and it lets us grant assistants the
+  // same public surface while keeping admin/preview closed.
+  const aiAgents = [
+    "GPTBot",
+    "OAI-SearchBot",
+    "ChatGPT-User",
+    "ClaudeBot",
+    "Claude-User",
+    "anthropic-ai",
+    "PerplexityBot",
+    "Perplexity-User",
+    "Google-Extended",
+    "Applebot-Extended",
+    "CCBot",
+    "Bytespider",
+    "meta-externalagent",
+  ];
+
   return {
     rules: [
-      {
-        userAgent: "*",
-        allow: "/",
-        disallow: [
-          "/admin",
-          "/admin/",
-          "/api/",
-          "/preview",
-          "/preview/",
-          "/search",
-          "/search/",
-          "/*?*utm_",
-        ],
-      },
+      { userAgent: "*", allow: "/", disallow },
+      ...aiAgents.map((userAgent) => ({ userAgent, allow: "/", disallow })),
     ],
     sitemap: [`${origin}/sitemap.xml`, `${origin}/news-sitemap.xml`],
     host: origin,
