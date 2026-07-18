@@ -44,7 +44,7 @@
   --destructive: 0 0% 5%;
   --destructive-foreground: 0 0% 100%;
 
-  --font-headline: var(--font-markazi), var(--font-estedad), var(--font-vazirmatn), serif;
+  --font-headline: var(--font-vazirmatn), sans-serif;
   --font-body: var(--font-vazirmatn), sans-serif;
   --container-width: 90rem;
   --article-width: 47.5rem;
@@ -140,7 +140,7 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
   --font-sans: var(--font-vazirmatn), ui-sans-serif, system-ui, sans-serif;
-  --font-headline: var(--font-markazi), var(--font-estedad), var(--font-vazirmatn), serif;
+  --font-headline: var(--font-vazirmatn), sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -331,7 +331,7 @@ h1, h2, h3, h4, h5, h6, .font-headline { font-family: var(--font-headline); }
 @media (max-width: 700px) { .market-ticker .mt-sm-hide { display: none; } }
 .editorial-masthead { min-height: 7.75rem; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
 .editorial-wordmark { grid-column: 2; text-align: center; line-height: 1; }
-.editorial-wordmark strong { display: block; font-family: var(--font-headline); font-size: clamp(2.75rem, 5.5vw, 5rem); font-weight: 700; letter-spacing: -.01em; }
+.editorial-wordmark strong { display: block; font-family: var(--font-headline); font-size: clamp(2.45rem, 5vw, 4.4rem); font-weight: 900; letter-spacing: -.035em; }
 .editorial-wordmark span { display: block; margin-top: .7rem; color: hsl(var(--muted-foreground)); font-size: .78rem; letter-spacing: .08em; }
 .editorial-masthead-search { justify-self: end; visibility: hidden; }
 .editorial-nav-row { position: sticky; top: 0; z-index: 45; border-block: 1px solid hsl(var(--border)); background: color-mix(in srgb, hsl(var(--background)) 96%, transparent); backdrop-filter: blur(10px); }
@@ -555,3 +555,88 @@ h1, h2, h3, h4, h5, h6, .font-headline { font-family: var(--font-headline); }
 .editorial-copyright { margin-top: 3rem; padding-block: 1.25rem; border-top: 1px solid color-mix(in srgb, var(--color-newsprint-cream) 20%, transparent); color: color-mix(in srgb, var(--color-newsprint-cream) 62%, transparent); font-size: .75rem; }
 @media (max-width: 900px) { .editorial-footer-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 520px) { .editorial-footer-grid { grid-template-columns: 1fr; } }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Admin panel — Apple-inspired.
+ * The public site is a print broadsheet (cream, 0 radius, hairlines); a CMS
+ * needs the opposite: calm neutral surfaces, soft radii, generous whitespace
+ * and a constrained measure. Tokens are re-declared on .admin-shell so every
+ * component inside (cards, buttons, inputs) retones automatically without
+ * touching the public theme.
+ * ────────────────────────────────────────────────────────────────────────── */
+.admin-shell {
+  --background: 240 6% 97%;      /* #f5f5f7 — Apple page gray */
+  --foreground: 240 6% 10%;      /* #1d1d1f */
+  --card: 0 0% 100%;
+  --card-foreground: 240 6% 10%;
+  --muted: 240 6% 95%;
+  --muted-foreground: 240 3% 45%; /* #6e6e73 */
+  --border: 240 6% 90%;           /* #e5e5e7 */
+  --input: 240 6% 88%;
+  --secondary: 240 6% 95%;
+  --secondary-foreground: 240 6% 10%;
+  --radius: 12px;
+  --radius-editorial: 10px;
+  min-height: 100vh;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+.dark .admin-shell {
+  --background: 240 6% 9%;
+  --foreground: 0 0% 96%;
+  --card: 240 5% 13%;
+  --card-foreground: 0 0% 96%;
+  --muted: 240 5% 18%;
+  --muted-foreground: 240 4% 64%;
+  --border: 240 5% 22%;
+  --input: 240 5% 24%;
+  --secondary: 240 5% 18%;
+  --secondary-foreground: 0 0% 96%;
+}
+
+.admin-layout { display: flex; min-height: 100vh; }
+
+.admin-sidebar {
+  position: sticky; top: 0; align-self: flex-start;
+  width: 15rem; height: 100vh; flex: 0 0 auto;
+  padding: 1.5rem 1rem; overflow-y: auto;
+  border-inline-end: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+}
+.admin-brand-name { font-size: 1rem; font-weight: 700; letter-spacing: -.01em; }
+.admin-brand-sub { margin-top: .15rem; font-size: .75rem; color: hsl(var(--muted-foreground)); }
+.admin-nav { margin-top: 1.75rem; display: grid; gap: .125rem; }
+.admin-nav-link {
+  display: block; padding: .55rem .75rem; border-radius: 8px;
+  font-size: .875rem; color: hsl(var(--foreground));
+  transition: background-color .15s ease;
+}
+.admin-nav-link:hover { background: hsl(var(--muted)); }
+.admin-nav-link[aria-current="page"] { background: hsl(var(--muted)); font-weight: 600; }
+
+.admin-main-col { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.admin-topbar {
+  position: sticky; top: 0; z-index: 20;
+  border-bottom: 1px solid hsl(var(--border));
+  background: color-mix(in srgb, hsl(var(--card)) 78%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+.admin-topbar-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: .8rem 2rem; font-size: .875rem;
+}
+.admin-topbar-actions { display: flex; align-items: center; gap: 1rem; }
+.admin-topbar-actions a { color: hsl(var(--muted-foreground)); font-size: .8rem; }
+.admin-topbar-actions a:hover { color: hsl(var(--foreground)); }
+
+.admin-main { flex: 1; padding: 2rem; }
+/* The measure fix — content no longer stretches across ultrawide screens. */
+.admin-container { width: min(64rem, 100%); margin-inline: auto; }
+
+@media (max-width: 900px) {
+  .admin-sidebar { display: none; }
+  .admin-main { padding: 1.25rem 1rem; }
+  .admin-topbar-inner { padding-inline: 1rem; }
+}
