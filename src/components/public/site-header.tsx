@@ -6,7 +6,7 @@ import { SearchBox } from "./search-box";
 import { MobileMenu } from "./mobile-menu";
 import { MainNavigation, type NavigationItem } from "./main-navigation";
 import { ThemeToggle } from "./theme-toggle";
-import { formatJalali } from "@/lib/dates";
+import { MarketTicker } from "./market-ticker";
 
 /** Primary navigation shown on desktop; the same items feed the mobile menu. */
 const PRIMARY_LINKS: NavigationItem[] = [
@@ -29,7 +29,7 @@ export async function SiteHeader() {
     <header className="editorial-header">
       <div className="editorial-utility">
         <div className="editorial-shell">
-          <p><time dateTime={new Date().toISOString()}>{formatJalali(new Date())}</time></p>
+          <MarketTicker />
           <nav aria-label="پیوندهای رسانه">
             <Link href={routes.page("about")}>درباره ما</Link>
             <Link href={routes.page("contact")}>تماس</Link>
