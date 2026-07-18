@@ -12,6 +12,8 @@ import {
   clearFailedAttempts,
 } from "./rate-limit";
 import { createResetToken, consumeResetToken } from "./password-reset";
+import { sendEmail } from "@/server/email/mailer";
+import { passwordResetEmail } from "@/server/email/templates";
 import { auditLog } from "@/server/audit/log";
 import { assertSameOrigin } from "@/server/security/csrf";
 import { safeRedirect } from "@/lib/safe-redirect";
@@ -107,8 +109,10 @@ export async function logoutAction(): Promise<void> {
 
 /**
  * Forgot password. Always returns a generic success to avoid user enumeration.
- * If the account exists, a reset token is created; without email configured we
- * surface the link in dev only.
+ * If the account exists a reset token is created and emailed (Resend). Delivery
+ * is best-effort: failures are logged but never surface to the caller. In
+ * non-production the link is additionally returned so local dev works without
+ * RESEND_API_KEY.
  */
 export async function forgotPasswordAction(
   _prev: ActionState,
@@ -133,7 +137,15 @@ export async function forgotPasswordAction(
     const token = await createResetToken(user.id);
     const link = `${siteConfig.url}/admin/reset-password?token=${token}`;
     await auditLog({ action: "auth.password.reset_requested", entityType: "auth", entityId: user.id, ip, userAgent });
-    // TODO(email): send `link` via Resend once configured (Phase 8).
+
+    // Best-effort delivery: never change the response on failure (enumeration)
+    // and never fail the request if the provider is down — just log it.
+    const mail = passwordResetEmail(link);
+    const sent = await sendEmail({ to: email, subject: mail.subject, html: mail.html, text: mail.text });
+    if (!sent.ok) {
+      console.error(`[password-reset] delivery failed for a reset request: ${sent.error}`);
+    }
+
     if (process.env.NODE_ENV !== "production") {
       console.log(`[password-reset] ${email}: ${link}`);
       devResetLink = link;
