@@ -5,6 +5,7 @@ import { siteConfig } from "@/lib/site-config";
 import { hasPermission } from "@/server/rbac/authz";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import { Button } from "@/components/ui/button";
+import { AdminNav } from "@/components/admin/admin-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -33,43 +34,38 @@ export default async function AdminLayout({
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 shrink-0 border-l border-border bg-card p-4 md:block">
-        <div className="mb-6">
-          <p className="text-lg font-extrabold">{siteConfig.name}</p>
-          <p className="text-xs text-muted-foreground">پنل مدیریت</p>
-        </div>
-        <nav className="space-y-1" aria-label="ناوبری اصلی پنل">
-          {nav
-            .filter((n) => n.show)
-            .map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
-              >
-                {n.label}
-              </Link>
-            ))}
-        </nav>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-card px-6 py-3">
-          <div className="text-sm">
-            <span className="text-muted-foreground">خوش آمدید، </span>
-            <span className="font-medium">{user.name}</span>
+    <div className="admin-shell">
+      <div className="admin-layout">
+        <aside className="admin-sidebar">
+          <div>
+            <p className="admin-brand-name">{siteConfig.name}</p>
+            <p className="admin-brand-sub">پنل مدیریت</p>
           </div>
-          <form action={logoutAction}>
-            <Button type="submit" variant="outline" size="sm">
-              خروج
-            </Button>
-          </form>
-        </header>
+          <AdminNav items={nav.filter((n) => n.show).map(({ href, label }) => ({ href, label }))} />
+        </aside>
 
-        <main id="main-content" className="flex-1 p-6">
-          {children}
-        </main>
+        <div className="admin-main-col">
+          <header className="admin-topbar">
+            <div className="admin-topbar-inner">
+              <div>
+                <span className="text-muted-foreground">خوش آمدید، </span>
+                <span className="font-medium">{user.name}</span>
+              </div>
+              <div className="admin-topbar-actions">
+                <Link href="/">مشاهده سایت</Link>
+                <form action={logoutAction}>
+                  <Button type="submit" variant="outline" size="sm">
+                    خروج
+                  </Button>
+                </form>
+              </div>
+            </div>
+          </header>
+
+          <main id="main-content" className="admin-main">
+            <div className="admin-container">{children}</div>
+          </main>
+        </div>
       </div>
     </div>
   );

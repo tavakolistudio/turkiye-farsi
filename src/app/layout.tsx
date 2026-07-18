@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Vazirmatn, Markazi_Text } from "next/font/google";
+import { Vazirmatn } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -9,15 +9,6 @@ import { siteConfig } from "@/lib/site-config";
 const vazirmatn = Vazirmatn({
   variable: "--font-vazirmatn",
   subsets: ["arabic", "latin"],
-  display: "swap",
-});
-
-// Editorial serif for headlines — an elegant Persian Naskh face that gives the
-// masthead and titles the "quality broadsheet" voice (Monocle-style).
-const markazi = Markazi_Text({
-  variable: "--font-markazi",
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -61,7 +52,7 @@ export default async function RootLayout({
       dir="rtl"
       data-scroll-behavior="smooth"
       suppressHydrationWarning
-      className={`${vazirmatn.variable} ${markazi.variable} ${estedad.variable} h-full`}
+      className={`${vazirmatn.variable} ${estedad.variable} h-full`}
     >
       <body className="min-h-full flex flex-col antialiased">
         <ThemeProvider
