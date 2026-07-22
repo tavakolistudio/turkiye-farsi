@@ -183,16 +183,16 @@ model User {
 // store a SHA-256 hash so a DB leak can't be replayed. Revocable per-session
 // or per-user (for "sign out everywhere" / deactivation).
 model Session {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userAgent  String?
   ip         String?
   expiresAt  DateTime
   revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-  lastUsedAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -228,23 +228,23 @@ model PasswordResetToken {
 }
 
 model Profile {
-  id           String  @id @default(cuid())
-  userId       String  @unique
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName  String?
-  slug         String  @unique
-  avatarUrl    String?
-  bio          String?
-  expertise    String?
-  publicEmail  String?
-  twitter      String?
-  instagram    String?
-  telegram     String?
-  linkedin     String?
-  website      String?
-  isPublic     Boolean @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String?
+  slug        String   @unique
+  avatarUrl   String?
+  bio         String?
+  expertise   String?
+  publicEmail String?
+  twitter     String?
+  instagram   String?
+  telegram    String?
+  linkedin    String?
+  website     String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("profiles")
 }
@@ -288,8 +288,8 @@ model RolePermission {
 model UserRole {
   userId String
   roleId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@map("user_roles")
@@ -313,6 +313,13 @@ enum NotificationType {
   SCHEDULED
   PUBLISH_FAILED
   MENTION
+  // Phase 10A — newsroom pipeline
+  NEWSROOM_URGENT
+  NEWSROOM_DRAFT_READY
+  NEWSROOM_SOURCE_CONFLICT
+  NEWSROOM_SOURCE_FAILING
+  NEWSROOM_BUDGET_WARNING
+  NEWSROOM_PIPELINE_FAILURE
 }
 
 model Article {
@@ -321,7 +328,7 @@ model Article {
   slug        String        @unique
   subtitle    String?
   summary     String?
-  bodyJson    Json?         // TipTap/ProseMirror document (sanitized on the server)
+  bodyJson    Json? // TipTap/ProseMirror document (sanitized on the server)
   contentType ContentType   @default(NEWS)
   status      ArticleStatus @default(DRAFT)
 
@@ -384,19 +391,20 @@ model Article {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  categories     ArticleCategory[]
-  tags           ArticleTag[]
-  sources        ArticleSource[]
-  media          ArticleMedia[]
-  revisions      ArticleRevision[]
-  corrections    ArticleCorrection[]
-  errorReports   ArticleErrorReport[]
-  pageViews      PageView[]
-  homeSections   HomeSectionItem[]
-  workflowEvents ArticleWorkflowEvent[]
-  comments       EditorialComment[]
-  previewTokens  PreviewToken[]
-  notifications  Notification[]
+  categories         ArticleCategory[]
+  tags               ArticleTag[]
+  sources            ArticleSource[]
+  media              ArticleMedia[]
+  revisions          ArticleRevision[]
+  corrections        ArticleCorrection[]
+  errorReports       ArticleErrorReport[]
+  pageViews          PageView[]
+  homeSections       HomeSectionItem[]
+  workflowEvents     ArticleWorkflowEvent[]
+  comments           EditorialComment[]
+  previewTokens      PreviewToken[]
+  notifications      Notification[]
+  newsroomProvenance NewsDraftProvenance[]
 
   @@index([slug])
   @@index([status])
@@ -416,24 +424,24 @@ model Article {
 // Immutable historical snapshot of an article at a point in time. Created only
 // on meaningful events (submit/approve/publish/restore), never on every autosave.
 model ArticleRevision {
-  id            String        @id @default(cuid())
-  articleId     String
-  article       Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  versionNumber Int
-  title         String
-  subtitle      String?
-  summary       String?
-  bodyJson      Json?
+  id              String        @id @default(cuid())
+  articleId       String
+  article         Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  versionNumber   Int
+  title           String
+  subtitle        String?
+  summary         String?
+  bodyJson        Json?
   metaTitle       String?
   metaDescription String?
   whyItMatters    String?
   whoIsAffected   String?
   whatToDo        String?
-  status        ArticleStatus
-  changedById   String
-  changedBy     User          @relation("RevisionChangedBy", fields: [changedById], references: [id])
-  changeReason  String?
-  createdAt     DateTime      @default(now())
+  status          ArticleStatus
+  changedById     String
+  changedBy       User          @relation("RevisionChangedBy", fields: [changedById], references: [id])
+  changeReason    String?
+  createdAt       DateTime      @default(now())
 
   @@unique([articleId, versionNumber])
   @@index([articleId, createdAt])
@@ -464,15 +472,15 @@ model ArticleCorrection {
 
 // Each workflow status transition, for the timeline and audit.
 model ArticleWorkflowEvent {
-  id         String        @id @default(cuid())
+  id         String         @id @default(cuid())
   articleId  String
-  article    Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article    Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
   fromStatus ArticleStatus?
   toStatus   ArticleStatus
   actorId    String
-  actor      User          @relation("WorkflowActor", fields: [actorId], references: [id])
+  actor      User           @relation("WorkflowActor", fields: [actorId], references: [id])
   note       String?
-  createdAt  DateTime      @default(now())
+  createdAt  DateTime       @default(now())
 
   @@index([articleId, createdAt])
   @@map("article_workflow_events")
@@ -480,18 +488,18 @@ model ArticleWorkflowEvent {
 
 // Internal editorial notes (threaded). Never exposed on the public site.
 model EditorialComment {
-  id         String    @id @default(cuid())
+  id         String             @id @default(cuid())
   articleId  String
-  article    Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article    Article            @relation(fields: [articleId], references: [id], onDelete: Cascade)
   authorId   String
-  author     User      @relation("CommentAuthor", fields: [authorId], references: [id])
+  author     User               @relation("CommentAuthor", fields: [authorId], references: [id])
   parentId   String?
   parent     EditorialComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
   replies    EditorialComment[] @relation("CommentThread")
   body       String
-  isResolved Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  isResolved Boolean            @default(false)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
   deletedAt  DateTime?
 
   @@index([articleId, createdAt])
@@ -518,8 +526,8 @@ model PreviewToken {
 model PublishJobLog {
   id        String   @id @default(cuid())
   articleId String?
-  jobType   String   // e.g. "scheduled_publish"
-  status    String   // "SUCCESS" | "FAILED" | "SKIPPED"
+  jobType   String // e.g. "scheduled_publish"
+  status    String // "SUCCESS" | "FAILED" | "SKIPPED"
   detail    String?
   error     String?
   runAt     DateTime @default(now())
@@ -548,16 +556,16 @@ model Notification {
 }
 
 model Category {
-  id              String  @id @default(cuid())
+  id              String     @id @default(cuid())
   name            String
-  slug            String  @unique
+  slug            String     @unique
   description     String?
   imageId         String?
-  image           Media?  @relation("CategoryImage", fields: [imageId], references: [id], onDelete: SetNull)
+  image           Media?     @relation("CategoryImage", fields: [imageId], references: [id], onDelete: SetNull)
   metaTitle       String?
   metaDescription String?
-  order           Int     @default(0)
-  isActive        Boolean @default(true)
+  order           Int        @default(0)
+  isActive        Boolean    @default(true)
   parentId        String?
   parent          Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
   children        Category[] @relation("CategoryTree")
@@ -578,8 +586,8 @@ model Category {
 model ArticleCategory {
   articleId  String
   categoryId String
-  isPrimary  Boolean @default(false)
-  order      Int     @default(0)
+  isPrimary  Boolean  @default(false)
+  order      Int      @default(0)
   article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
@@ -633,11 +641,38 @@ model Source {
   updatedAt        DateTime         @updatedAt
   deletedAt        DateTime?
 
-  articles ArticleSource[]
+  // ── Phase 10A: automated collection (newsroom) ──────────────
+  // A machine-readable endpoint we are ALLOWED to poll. Collection is opt-in
+  // per source via `isEnabled`; `isActive` remains a separate public-visibility
+  // flag. We never scrape arbitrary web pages by default.
+  feedUrl               String?
+  collectionMethod      CollectionMethod @default(MANUAL)
+  // 0..100 editorial trust used by scoring/trust services (distinct from the
+  // coarse public `credibilityLevel`).
+  trustLevel            Int              @default(50)
+  // Higher = fetched earlier / weighted more when multiple sources compete.
+  priority              Int              @default(0)
+  isEnabled             Boolean          @default(false)
+  fetchIntervalMinutes  Int              @default(1440)
+  lastFetchedAt         DateTime?
+  lastSuccessfulFetchAt DateTime?
+  consecutiveFailures   Int              @default(0)
+  // When a human last confirmed the source's Terms / robots allow collection.
+  termsReviewedAt       DateTime?
+  robotsReviewedAt      DateTime?
+  // Only ever true for sources whose licence explicitly allows storing more
+  // than a short excerpt. Default false — copyright-safe.
+  allowFullTextFetch    Boolean          @default(false)
+  maxExcerptLength      Int              @default(400)
+
+  articles      ArticleSource[]
+  ingestedItems IngestedNewsItem[]
 
   @@index([slug])
   @@index([sourceType])
   @@index([deletedAt])
+  @@index([isEnabled])
+  @@index([lastFetchedAt])
   @@map("sources")
 }
 
@@ -681,15 +716,15 @@ model MediaFolder {
 
 model Media {
   id               String       @id @default(cuid())
-  filename         String       // safe, stored name
-  originalFilename String       // user-provided name (display only)
-  storagePath      String       // key/path within the storage provider
+  filename         String // safe, stored name
+  originalFilename String // user-provided name (display only)
+  storagePath      String // key/path within the storage provider
   publicUrl        String
   mimeType         String
-  size             Int          // bytes
+  size             Int // bytes
   width            Int?
   height           Int?
-  duration         Int?         // seconds, for audio/video
+  duration         Int? // seconds, for audio/video
   alt              String?
   caption          String?
   credit           String?
@@ -733,16 +768,16 @@ model ArticleMedia {
 // ──────────────── Homepage / Breaking / Ads ──────────────────
 
 model HomeSection {
-  id        String          @id @default(cuid())
-  type      HomeSectionType
-  title     String
-  order     Int             @default(0)
-  isEnabled Boolean         @default(true)
-  itemCount Int             @default(6)
+  id         String          @id @default(cuid())
+  type       HomeSectionType
+  title      String
+  order      Int             @default(0)
+  isEnabled  Boolean         @default(true)
+  itemCount  Int             @default(6)
   categoryId String?
-  config    Json?           // extra per-section config
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  config     Json? // extra per-section config
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   items HomeSectionItem[]
 
@@ -751,12 +786,12 @@ model HomeSection {
 }
 
 model HomeSectionItem {
-  id           String  @id @default(cuid())
+  id            String      @id @default(cuid())
   homeSectionId String
-  homeSection  HomeSection @relation(fields: [homeSectionId], references: [id], onDelete: Cascade)
-  articleId    String
-  article      Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  order        Int     @default(0)
+  homeSection   HomeSection @relation(fields: [homeSectionId], references: [id], onDelete: Cascade)
+  articleId     String
+  article       Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  order         Int         @default(0)
 
   @@unique([homeSectionId, articleId])
   @@index([homeSectionId, order])
@@ -764,37 +799,37 @@ model HomeSectionItem {
 }
 
 model BreakingNews {
-  id         String   @id @default(cuid())
-  title      String
-  url        String?
-  articleId  String?
-  priority   Int      @default(0)
-  color      String?
-  isActive   Boolean  @default(true)
-  showMobile Boolean  @default(true)
-  showDesktop Boolean @default(true)
-  startsAt   DateTime?
-  endsAt     DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String    @id @default(cuid())
+  title       String
+  url         String?
+  articleId   String?
+  priority    Int       @default(0)
+  color       String?
+  isActive    Boolean   @default(true)
+  showMobile  Boolean   @default(true)
+  showDesktop Boolean   @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([isActive, priority])
   @@map("breaking_news")
 }
 
 model Advertisement {
-  id         String      @id @default(cuid())
-  name       String
-  imageUrl   String?
-  linkUrl    String?
-  placement  AdPlacement
-  status     AdStatus    @default(DRAFT)
-  startsAt   DateTime?
-  endsAt     DateTime?
-  impressions Int        @default(0)
-  clicks     Int         @default(0)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id          String      @id @default(cuid())
+  name        String
+  imageUrl    String?
+  linkUrl     String?
+  placement   AdPlacement
+  status      AdStatus    @default(DRAFT)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  impressions Int         @default(0)
+  clicks      Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   @@index([placement, status])
   @@map("advertisements")
@@ -803,45 +838,45 @@ model Advertisement {
 // ──────────────── Newsletter / Forms / Reports ───────────────
 
 model NewsletterSubscriber {
-  id            String           @id @default(cuid())
-  email         String           @unique
-  status        SubscriberStatus @default(PENDING)
-  confirmToken  String?          @unique
-  source        String?
-  confirmedAt   DateTime?
+  id             String           @id @default(cuid())
+  email          String           @unique
+  status         SubscriberStatus @default(PENDING)
+  confirmToken   String?          @unique
+  source         String?
+  confirmedAt    DateTime?
   unsubscribedAt DateTime?
-  createdAt     DateTime         @default(now())
+  createdAt      DateTime         @default(now())
 
   @@index([status])
   @@map("newsletter_subscribers")
 }
 
 model ContactSubmission {
-  id          String        @id @default(cuid())
-  name        String
-  email       String
-  phone       String?
-  subject     String
-  message     String
-  status      ContactStatus @default(NEW)
+  id           String        @id @default(cuid())
+  name         String
+  email        String
+  phone        String?
+  subject      String
+  message      String
+  status       ContactStatus @default(NEW)
   internalNote String?
-  createdAt   DateTime      @default(now())
+  createdAt    DateTime      @default(now())
 
   @@index([status])
   @@map("contact_submissions")
 }
 
 model ArticleErrorReport {
-  id          String          @id @default(cuid())
-  articleId   String
-  article     Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  name        String?
-  email       String?
-  type        ErrorReportType @default(OTHER)
-  detail      String
-  status      ReportStatus    @default(NEW)
+  id           String          @id @default(cuid())
+  articleId    String
+  article      Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  name         String?
+  email        String?
+  type         ErrorReportType @default(OTHER)
+  detail       String
+  status       ReportStatus    @default(NEW)
   internalNote String?
-  createdAt   DateTime        @default(now())
+  createdAt    DateTime        @default(now())
 
   @@index([articleId])
   @@index([status])
@@ -866,7 +901,7 @@ model StaticPage {
   id              String    @id @default(cuid())
   slug            String    @unique
   title           String
-  bodyJson        Json?     // sanitized TipTap/ProseMirror document
+  bodyJson        Json? // sanitized TipTap/ProseMirror document
   metaTitle       String?
   metaDescription String?
   isPublished     Boolean   @default(true)
@@ -890,15 +925,15 @@ model SearchLog {
 }
 
 model PageView {
-  id         String     @id @default(cuid())
-  articleId  String?
-  article    Article?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
-  path       String
-  referrer   String?
-  deviceType DeviceType @default(UNKNOWN)
-  sessionKey String?    // non-sensitive rotating identifier
-  sourceClick Boolean   @default(false)
-  createdAt  DateTime   @default(now())
+  id          String     @id @default(cuid())
+  articleId   String?
+  article     Article?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  path        String
+  referrer    String?
+  deviceType  DeviceType @default(UNKNOWN)
+  sessionKey  String? // non-sensitive rotating identifier
+  sourceClick Boolean    @default(false)
+  createdAt   DateTime   @default(now())
 
   @@index([articleId, createdAt])
   @@index([createdAt])
@@ -919,7 +954,7 @@ model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action     String   // e.g. article.publish
+  action     String // e.g. article.publish
   entityType String?
   entityId   String?
   ip         String?
@@ -932,4 +967,239 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ═══════════════ Phase 10A — AI Newsroom Pipeline ═══════════════
+// A privacy- and copyright-conscious ingestion pipeline. We store only titles,
+// short excerpts, metadata and source URLs — never full copyrighted bodies.
+// Nothing here is ever auto-published; every output lands in a review queue as
+// a DRAFT Article.
+
+enum CollectionMethod {
+  RSS
+  ATOM
+  JSON_FEED
+  OFFICIAL_API
+  MANUAL
+  WEB_PAGE_ALLOWED
+}
+
+enum IngestionStatus {
+  FETCHED
+  NORMALIZED
+  DUPLICATE
+  CLUSTERED
+  SCORED
+  DRAFTED
+  REJECTED
+  FAILED
+}
+
+enum NewsBatchStatus {
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum NewsPipelineStage {
+  FETCH
+  NORMALIZE
+  DEDUPLICATE
+  CLUSTER
+  SCORE
+  CLASSIFY
+  TRUST
+  DRAFT
+  NOTIFY
+}
+
+enum NewsJobStatus {
+  STARTED
+  SUCCESS
+  SKIPPED
+  FAILED
+}
+
+enum NewsClusterStatus {
+  OPEN
+  MERGED
+  CLOSED
+}
+
+enum NewsVerificationStatus {
+  UNVERIFIED
+  SINGLE_SOURCE
+  MULTI_SOURCE
+  OFFICIAL_CONFIRMED
+  CONFLICTING
+  REJECTED
+}
+
+// One raw item pulled from a source feed. Copyright-safe: excerpt is truncated,
+// no full article body or raw HTML is ever persisted.
+model IngestedNewsItem {
+  id               String          @id @default(cuid())
+  sourceId         String
+  source           Source          @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  // Stable per-source identifier from the feed (guid/id/link). Used for idempotency.
+  externalId       String
+  sourceUrl        String
+  canonicalUrl     String?
+  title            String
+  originalLanguage String?
+  publishedAt      DateTime?
+  updatedAt        DateTime?       @updatedAt
+  authorName       String?
+  // Short, length-limited plain-text summary (never the full body).
+  excerpt          String?
+  // Whitelisted, non-sensitive feed metadata only (no raw response, no secrets).
+  rawMetadataJson  Json?
+  contentHash      String?
+  titleHash        String?
+  normalizedTitle  String?
+  normalizedText   String?
+  fetchBatchId     String?
+  batch            NewsFetchBatch? @relation(fields: [fetchBatchId], references: [id], onDelete: SetNull)
+  ingestionStatus  IngestionStatus @default(FETCHED)
+  rejectionReason  String?
+  createdAt        DateTime        @default(now())
+
+  clusterLinks NewsStoryClusterItem[]
+  clustersRep  NewsStoryCluster[]     @relation("ClusterRepresentative")
+  jobLogs      NewsPipelineJobLog[]
+  provenance   NewsDraftProvenance[]
+
+  @@unique([sourceId, externalId])
+  @@index([canonicalUrl])
+  @@index([contentHash])
+  @@index([titleHash])
+  @@index([publishedAt])
+  @@index([ingestionStatus])
+  @@index([createdAt])
+  @@index([fetchBatchId])
+  @@map("ingested_news_items")
+}
+
+// A single pipeline run across (some or all) enabled sources.
+model NewsFetchBatch {
+  id             String          @id @default(cuid())
+  startedAt      DateTime        @default(now())
+  completedAt    DateTime?
+  status         NewsBatchStatus @default(RUNNING)
+  // Idempotency / lock: only one RUNNING batch of a given trigger at a time.
+  trigger        String          @default("cron") // "cron" | "manual"
+  sourceCount    Int             @default(0)
+  fetchedCount   Int             @default(0)
+  newCount       Int             @default(0)
+  duplicateCount Int             @default(0)
+  failedCount    Int             @default(0)
+  rejectedCount  Int             @default(0)
+  draftedCount   Int             @default(0)
+  aiCallCount    Int             @default(0)
+  estimatedCost  Float           @default(0)
+  errorSummary   String?
+
+  items IngestedNewsItem[]
+  jobs  NewsPipelineJobLog[]
+
+  @@index([status])
+  @@index([startedAt])
+  @@map("news_fetch_batches")
+}
+
+// Per-item, per-stage structured log. Never stores secrets or full responses.
+model NewsPipelineJobLog {
+  id               String            @id @default(cuid())
+  batchId          String?
+  batch            NewsFetchBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  newsItemId       String?
+  newsItem         IngestedNewsItem? @relation(fields: [newsItemId], references: [id], onDelete: SetNull)
+  stage            NewsPipelineStage
+  status           NewsJobStatus
+  attempt          Int               @default(1)
+  startedAt        DateTime          @default(now())
+  completedAt      DateTime?
+  errorCode        String?
+  errorMessageSafe String?
+  metadataJson     Json?
+
+  @@index([batchId])
+  @@index([newsItemId])
+  @@index([stage, status])
+  @@index([startedAt])
+  @@map("news_pipeline_job_logs")
+}
+
+// A group of ingested items covering the same real-world story (from one or
+// more sources). Enables multi-source confirmation for trust scoring.
+model NewsStoryCluster {
+  id                   String            @id @default(cuid())
+  clusterKey           String            @unique
+  representativeItemId String?
+  representativeItem   IngestedNewsItem? @relation("ClusterRepresentative", fields: [representativeItemId], references: [id], onDelete: SetNull)
+  normalizedTopic      String?
+  firstSeenAt          DateTime          @default(now())
+  lastSeenAt           DateTime          @default(now())
+  sourceCount          Int               @default(1)
+  confidence           Float             @default(0)
+  status               NewsClusterStatus @default(OPEN)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  items      NewsStoryClusterItem[]
+  provenance NewsDraftProvenance[]
+
+  @@index([status])
+  @@index([lastSeenAt])
+  @@map("news_story_clusters")
+}
+
+model NewsStoryClusterItem {
+  clusterId       String
+  cluster         NewsStoryCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  newsItemId      String
+  newsItem        IngestedNewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  similarityScore Float            @default(1)
+  isPrimary       Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+
+  @@id([clusterId, newsItemId])
+  @@index([newsItemId])
+  @@map("news_story_cluster_items")
+}
+
+// Provenance / audit trail for an AI- or rule-generated Draft. NOT public —
+// only Admin/Audit surfaces read this. One-to-one-ish with a produced Article.
+model NewsDraftProvenance {
+  id                  String                 @id @default(cuid())
+  articleId           String?                @unique
+  article             Article?               @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  ingestionBatchId    String?
+  storyClusterId      String?
+  storyCluster        NewsStoryCluster?      @relation(fields: [storyClusterId], references: [id], onDelete: SetNull)
+  primaryItemId       String?
+  primaryItem         IngestedNewsItem?      @relation(fields: [primaryItemId], references: [id], onDelete: SetNull)
+  generatedByAI       Boolean                @default(false)
+  aiProvider          String?
+  aiModel             String?
+  aiPromptVersion     String?
+  aiGeneratedAt       DateTime?
+  ruleScore           Int?
+  aiScore             Int?
+  finalScore          Int?
+  trustScore          Int?
+  verificationStatus  NewsVerificationStatus @default(UNVERIFIED)
+  scoreReasons        Json?
+  generationCost      Float                  @default(0)
+  requiresHumanReview Boolean                @default(true)
+  lastHumanReviewedAt DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([storyClusterId])
+  @@index([finalScore])
+  @@index([trustScore])
+  @@index([createdAt])
+  @@map("news_draft_provenance")
 }
