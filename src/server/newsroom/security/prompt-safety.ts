@@ -51,7 +51,7 @@ export function neutralizeInjection(input: string): string {
   out = out.replace(/```+/g, " ").replace(/^\s*(system|assistant|user)\s*:/gim, "$1 -");
   // Break the most common override directives (keep words, drop imperativeness).
   out = out.replace(
-    /\b(ignore|disregard|forget|override)\b(\s+(all|any|the|previous|above|prior))?\s+(instructions?|prompts?|rules?|context)/gi,
+    /\b(ignore|disregard|forget|override)\b(\s+(all|any|the|previous|above|prior|following|these|those|earlier))*\s+(instructions?|prompts?|rules?|context|commands?)/gi,
     "[دستور نادیده‌گرفته‌شده]",
   );
   out = out.replace(/\byou are now\b/gi, "[…]");
