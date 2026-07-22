@@ -22,6 +22,18 @@ All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
   (`NewsroomSettings`); AI and collection default OFF.
 - Docs: `AI_NEWSROOM.md`, `NEWSROOM_SOURCES_POLICY.md`, permanent rules in
   `AGENTS.md`. 40 unit tests.
+### Added (completion pass)
+- **Settings admin** (kill switches, limits, scoring weights, reset), **source
+  collection management** (feed/method/trust/enable, SSRF-safe Test Feed, ETag/
+  Last-Modified/failure status, real conditional GET), **reprocess** &
+  **regenerate** (revision-safe, refuses to clobber human edits), **cluster
+  merge/split**, and **retention cleanup** (dry-run, advisory-locked, second
+  `CRON_SECRET` cron).
+- Fixes: identical cross-source stories now cluster (multi-source confirmation)
+  instead of being dropped; RBAC/CSRF errors map to 401/403/400 not 500; the
+  header market-ticker uses `useSyncExternalStore` (lint clean).
+- Coverage: 40 unit + 9 integration + 6 E2E, all green on local embedded
+  Postgres (never production).
 ### Guarantees
 - No auto-publish, no AI images, no social auto-posting, no full copyrighted
   text stored, no scraping of disallowed sources.

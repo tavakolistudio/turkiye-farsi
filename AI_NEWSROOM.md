@@ -80,14 +80,42 @@ Env: `OPENAI_API_KEY`, `OPENAI_NEWSROOM_MODEL`, `OPENAI_NEWSROOM_TIMEOUT_MS`,
 `dailyAiBudget`, `scoringWeights`, `fetchTimeout`, `retryCount`, `retentionDays`.
 Collection and AI default to **OFF**.
 
+## Admin surfaces
+
+- `/admin/newsroom` — review queue (tabs by importance bucket + rejected/drafted),
+  per-item **create draft / reject / reprocess / regenerate**, manual run, stats.
+- `/admin/newsroom/settings` — all kill switches, run limits, scoring weights,
+  reset-to-defaults, and the **retention cleanup** dry-run/run card.
+- `/admin/newsroom/sources` — per-source feed URL/method/trust/priority, enable
+  /disable, **Test Feed** (SSRF-hardened, no persistence), and last-fetch / ETag
+  / Last-Modified / failure status.
+- `/admin/newsroom/clusters` (+ `/[id]`) — multi-select **merge** and per-item
+  **split**.
+
+## Reprocess & regenerate
+
+- **Reprocess** re-runs classification/importance/trust for an item with the
+  current settings — idempotent, never re-fetches, preserves DRAFTED.
+- **Regenerate** rebuilds an item's draft. It refuses to clobber a human-edited
+  or advanced draft unless forced, and always snapshots a revision first. Stays
+  `DRAFT`.
+
 ## Cron & operations
 
-- `GET/POST /api/cron/newsroom-collect` — authenticated by `CRON_SECRET` (Bearer,
+- `GET/POST /api/cron/newsroom-collect` — collection. `CRON_SECRET` (Bearer,
   never query string; fails closed). Daily on Vercel Hobby (`vercel.json`).
+- `GET/POST /api/cron/newsroom-cleanup` — retention cleanup (soft-deletes old
+  REJECTED items, archives old job logs; never touches drafts/provenance/
+  articles/revisions/attribution). Advisory-locked, idempotent, `CRON_SECRET`.
 - Batch lock: only one `RUNNING` batch at a time; idempotent via
-  `unique(sourceId, externalId)`.
-- Manual run: **اتاق خبر هوشمند** in the admin (`/admin/newsroom`) →
-  «اجرای جمع‌آوری» (permission `newsroom.run_collection`).
+  `unique(sourceId, externalId)`. Real conditional GET (stored ETag /
+  If-Modified-Since per source).
+- Manual run from the queue (permission `newsroom.run_collection`).
+
+## Tests
+
+40 unit + 9 integration (offline, mocked SSRF fetch) + 6 E2E (real browser,
+DB-seeded item) — all run against a local embedded Postgres, never production.
 
 ## Permissions
 
