@@ -19,6 +19,14 @@ import { registerRedirect } from "./redirect.service";
 
 const SORTABLE = ["order", "name", "createdAt", "updatedAt"] as const;
 
+/**
+ * The reserved "uncategorized" bucket. Articles whose category is deleted are
+ * moved here so content is never orphaned. It cannot be deleted or renamed and
+ * is created lazily the first time it is needed.
+ */
+export const UNCATEGORIZED_SLUG = "uncategorized";
+const UNCATEGORIZED_NAME = "بدون دسته";
+
 /** True if setting `newParentId` as parent of `categoryId` forms a cycle. */
 function wouldCreateCycle(
   parentMap: Map<string, string | null>,
@@ -56,6 +64,12 @@ export const categoryService = {
     const cat = await categoryRepo.findById(id, true);
     if (!cat) throw ApiError.notFound("دسته‌بندی یافت نشد.");
     return cat;
+  },
+
+  /** Number of articles attached to a category (primary FK + join table). */
+  async articleCount(ctx: ServiceContext, id: string) {
+    assertPermission(ctx.actor, PERMISSIONS.CATEGORY_VIEW);
+    return categoryRepo.articleUsage(id);
   },
 
   async create(ctx: ServiceContext, raw: unknown) {
@@ -151,26 +165,83 @@ export const categoryService = {
   },
 
   /**
-   * Soft-delete a category. If it still has articles, refuses unless a
-   * `reassignToCategoryId` is given, in which case those articles are moved
-   * first (never hard-deletes content).
+   * Ensure the reserved "uncategorized" bucket exists and is active, returning
+   * it. If it was previously soft-deleted we resurrect it rather than creating a
+   * duplicate slug.
+   */
+  async ensureUncategorized() {
+    const existing = await categoryRepo.findBySlugAny(UNCATEGORIZED_SLUG);
+    if (existing) {
+      if (existing.deletedAt) return categoryRepo.setDeletedAt(existing.id, null);
+      return existing;
+    }
+    return categoryRepo.create({
+      name: UNCATEGORIZED_NAME,
+      slug: UNCATEGORIZED_SLUG,
+      description: "مطالبی که دسته‌بندی اختصاصی ندارند یا دسته‌شان حذف شده است.",
+      order: 9999,
+      // Hidden from the public site (nav/category pages filter isActive) — this
+      // is an internal holding bucket, not an editorial category.
+      isActive: false,
+    });
+  },
+
+  /**
+   * Move every article from one category to another. Never deletes content.
+   * Requires CATEGORY_UPDATE. Returns the number of articles moved.
+   */
+  async reassignArticles(ctx: ServiceContext, fromId: string, toId: string) {
+    assertPermission(ctx.actor, PERMISSIONS.CATEGORY_UPDATE);
+    if (fromId === toId) throw ApiError.validation("مبدأ و مقصد نمی‌توانند یکسان باشند.");
+    const from = await categoryRepo.findById(fromId, true);
+    if (!from) throw ApiError.notFound("دسته‌بندی مبدأ یافت نشد.");
+    const to = await categoryRepo.findById(toId);
+    if (!to) throw ApiError.validation("دسته‌بندی مقصد معتبر نیست.");
+
+    const moved = await categoryRepo.reassignArticles(fromId, toId);
+    await auditLog({
+      userId: ctx.actor.id,
+      action: "category.reassign_articles",
+      entityType: "category",
+      entityId: fromId,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      before: { from: from.name },
+      after: { to: to.name, moved },
+    });
+    return { moved, to: { id: to.id, name: to.name } };
+  },
+
+  /**
+   * Soft-delete a category. Any attached articles are moved first so content is
+   * never orphaned: to `reassignToCategoryId` when given, otherwise to the
+   * reserved "uncategorized" bucket (created on demand). The uncategorized
+   * bucket itself can never be deleted.
    */
   async softDelete(ctx: ServiceContext, id: string, reassignToCategoryId?: string) {
     assertPermission(ctx.actor, PERMISSIONS.CATEGORY_DELETE);
     const existing = await categoryRepo.findById(id, true);
     if (!existing) throw ApiError.notFound("دسته‌بندی یافت نشد.");
+    if (existing.slug === UNCATEGORIZED_SLUG) {
+      throw ApiError.validation("دسته‌ی «بدون دسته» یک دسته‌ی سیستمی است و حذف نمی‌شود.");
+    }
 
     const usage = await categoryRepo.articleUsage(id);
+    let reassignedTo: string | null = null;
     if (usage > 0) {
-      if (!reassignToCategoryId) {
-        throw ApiError.inUse(
-          `این دسته‌بندی به ${usage} مطلب متصل است. ابتدا مطالب را به دسته‌بندی دیگری منتقل کنید.`,
-        );
+      // Determine the destination: explicit target, else the uncategorized bucket.
+      let targetId = reassignToCategoryId;
+      if (targetId) {
+        if (targetId === id) throw ApiError.validation("مقصد انتقال نمی‌تواند خود همین دسته باشد.");
+        if (!(await categoryRepo.findById(targetId))) {
+          throw ApiError.validation("دسته‌بندی مقصد برای انتقال معتبر نیست.");
+        }
+      } else {
+        const bucket = await this.ensureUncategorized();
+        targetId = bucket.id;
       }
-      if (!(await categoryRepo.findById(reassignToCategoryId))) {
-        throw ApiError.validation("دسته‌بندی مقصد برای انتقال معتبر نیست.");
-      }
-      await prismaReassign(id, reassignToCategoryId);
+      await categoryRepo.reassignArticles(id, targetId);
+      reassignedTo = targetId;
     }
 
     const deleted = await categoryRepo.setDeletedAt(id, new Date());
@@ -182,7 +253,7 @@ export const categoryService = {
       ip: ctx.ip,
       userAgent: ctx.userAgent,
       before: { name: existing.name, deletedAt: existing.deletedAt },
-      after: { deletedAt: deleted.deletedAt, reassignedTo: reassignToCategoryId ?? null },
+      after: { deletedAt: deleted.deletedAt, reassignedTo, movedArticles: usage },
     });
     return deleted;
   },
@@ -203,24 +274,3 @@ export const categoryService = {
     return restored;
   },
 };
-
-// Move all articles from one category to another (both FK and join table).
-async function prismaReassign(fromId: string, toId: string) {
-  const { prisma } = await import("@/lib/db");
-  await prisma.$transaction([
-    prisma.article.updateMany({
-      where: { primaryCategoryId: fromId },
-      data: { primaryCategoryId: toId },
-    }),
-    // Move join rows that don't already exist on the target.
-    prisma.$executeRaw`
-      UPDATE "article_categories" ac
-      SET "categoryId" = ${toId}
-      WHERE ac."categoryId" = ${fromId}
-        AND NOT EXISTS (
-          SELECT 1 FROM "article_categories" x
-          WHERE x."articleId" = ac."articleId" AND x."categoryId" = ${toId}
-        )`,
-    prisma.articleCategory.deleteMany({ where: { categoryId: fromId } }),
-  ]);
-}
