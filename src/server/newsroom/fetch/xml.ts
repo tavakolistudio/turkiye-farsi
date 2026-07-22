@@ -45,7 +45,7 @@ class Parser {
 
   parseNodes(): XmlNode[] {
     const nodes: XmlNode[] = [];
-    let depth = 0;
+    const depth = 0;
     const guardMax = this.s.length + 1;
     let iterations = 0;
     while (this.i < this.s.length) {

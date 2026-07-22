@@ -17,15 +17,6 @@ import type { ClassificationResult, TrustResult, TrustVerification } from "./typ
  * PUBLISHED/APPROVED/SCHEDULED — with full provenance and attached sources.
  */
 
-const BUCKET_STATUS: Record<string, string[]> = {
-  urgent: ["SCORED"],
-  high: ["SCORED"],
-  review: ["SCORED"],
-  low: ["SCORED"],
-  rejected: ["REJECTED"],
-  failed: ["FAILED"],
-};
-
 export interface ItemListFilter {
   bucket?: "URGENT" | "HIGH" | "REVIEW" | "LOW";
   status?: string;
