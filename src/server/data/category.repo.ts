@@ -22,6 +22,12 @@ export const categoryRepo = {
     return prisma.category.findFirst({ where: { slug, deletedAt: null } });
   },
 
+  /** Find by slug regardless of soft-delete state (used for the reserved
+   * "uncategorized" bucket, which we resurrect rather than duplicate). */
+  findBySlugAny(slug: string) {
+    return prisma.category.findFirst({ where: { slug } });
+  },
+
   async list(args: {
     where: Prisma.CategoryWhereInput;
     orderBy: Prisma.CategoryOrderByWithRelationInput;
@@ -69,5 +75,35 @@ export const categoryRepo = {
   async parentMap() {
     const all = await prisma.category.findMany({ select: { id: true, parentId: true } });
     return new Map(all.map((c) => [c.id, c.parentId]));
+  },
+
+  /**
+   * Move every article from one category to another — both the primary-category
+   * FK and the many-to-many join table — without ever deleting content and
+   * without creating duplicate join rows. Returns the number of articles moved.
+   */
+  async reassignArticles(fromId: string, toId: string): Promise<number> {
+    const affected = await prisma.article.findMany({
+      where: { OR: [{ primaryCategoryId: fromId }, { categories: { some: { categoryId: fromId } } }] },
+      select: { id: true },
+    });
+    await prisma.$transaction([
+      prisma.article.updateMany({
+        where: { primaryCategoryId: fromId },
+        data: { primaryCategoryId: toId },
+      }),
+      // Move join rows that don't already exist on the target category.
+      prisma.$executeRaw`
+        UPDATE "article_categories" ac
+        SET "categoryId" = ${toId}
+        WHERE ac."categoryId" = ${fromId}
+          AND NOT EXISTS (
+            SELECT 1 FROM "article_categories" x
+            WHERE x."articleId" = ac."articleId" AND x."categoryId" = ${toId}
+          )`,
+      // Drop any leftover source rows that would have collided on the target.
+      prisma.articleCategory.deleteMany({ where: { categoryId: fromId } }),
+    ]);
+    return affected.length;
   },
 };

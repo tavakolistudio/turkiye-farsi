@@ -59,6 +59,26 @@ export async function deleteCategoryAction(id: string): Promise<FormState> {
   return { ok: true };
 }
 
+export async function reassignCategoryArticlesAction(
+  _prev: FormState,
+  fd: FormData,
+): Promise<FormState> {
+  const fromId = str(fd, "fromId");
+  const toId = str(fd, "toId");
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    if (!fromId) throw new Error("missing source category");
+    if (!toId) return { error: "دسته‌بندی مقصد را انتخاب کنید." };
+    const { moved } = await categoryService.reassignArticles(ctx, fromId, toId);
+    revalidatePath("/admin/categories");
+    revalidatePath(`/admin/categories/${fromId}/edit`);
+    return { ok: true, message: `${moved} مطلب منتقل شد.` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
 export async function restoreCategoryAction(id: string): Promise<FormState> {
   try {
     await assertSameOrigin();

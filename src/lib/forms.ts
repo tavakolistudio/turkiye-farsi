@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api/errors";
 export interface FormState {
   ok?: boolean;
   error?: string;
+  message?: string;
   fieldErrors?: Record<string, string[] | undefined>;
 }
 
