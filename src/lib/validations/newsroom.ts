@@ -64,4 +64,19 @@ export const testFeedSchema = z.object({
   feedUrl: z.string().trim().url().max(2000),
 });
 
+export const mergeClustersSchema = z
+  .object({
+    clusterIds: z.array(z.string().min(1)).min(2, "حداقل دو خوشه برای ادغام لازم است.").max(20),
+    primaryId: z.string().min(1),
+  })
+  .refine((v) => v.clusterIds.includes(v.primaryId), {
+    message: "خوشه اصلی باید در فهرست انتخاب‌شده باشد.",
+    path: ["primaryId"],
+  });
+
+export const splitClusterSchema = z.object({
+  clusterId: z.string().min(1),
+  itemIds: z.array(z.string().min(1)).min(1, "حداقل یک آیتم برای جداسازی انتخاب کنید.").max(200),
+});
+
 export { CollectionMethod };

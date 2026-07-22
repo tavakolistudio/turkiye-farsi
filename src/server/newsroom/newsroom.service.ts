@@ -16,8 +16,10 @@ import type { ClassificationResult, TrustResult, TrustVerification } from "./typ
 import { scoreImportance, scoreBucket } from "./scoring/importance.service";
 import { evaluateTrust, type ClusterSourceInfo } from "./scoring/trust.service";
 import { classify } from "./classify/classification.service";
-import { clusterSourceCount } from "./cluster/cluster.service";
+import { clusterSourceCount, recomputeCluster } from "./cluster/cluster.service";
+import { mergeClustersSchema, splitClusterSchema } from "@/lib/validations/newsroom";
 import { revisionService } from "@/server/services/revision.service";
+import { randomUUID } from "node:crypto";
 
 /**
  * Admin-facing newsroom operations. Every method is permission-gated and
@@ -237,6 +239,114 @@ export const newsroomService = {
 
     await auditLog({ userId: ctx.actor.id, action: "newsroom.create_draft", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: item.id } });
     return { articleId: article.id, slug: article.slug };
+  },
+
+  // ── Clusters ────────────────────────────────────────────────
+  async listClusters(ctx: ServiceContext, opts: { page?: number; pageSize?: number } = {}) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_VIEW);
+    const pageSize = Math.min(Math.max(opts.pageSize ?? 20, 1), 100);
+    const page = Math.max(opts.page ?? 1, 1);
+    const [rows, total] = await Promise.all([
+      prisma.newsStoryCluster.findMany({
+        where: { status: "OPEN" },
+        orderBy: { lastSeenAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          representativeItem: { select: { title: true } },
+          _count: { select: { items: true } },
+        },
+      }),
+      prisma.newsStoryCluster.count({ where: { status: "OPEN" } }),
+    ]);
+    return { rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  },
+
+  async getCluster(ctx: ServiceContext, id: string) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_VIEW);
+    const cluster = await prisma.newsStoryCluster.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: { newsItem: { select: { id: true, title: true, source: { select: { name: true } }, publishedAt: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    if (!cluster) throw ApiError.notFound("خوشه یافت نشد.");
+    return cluster;
+  },
+
+  /**
+   * Merge several clusters into one primary cluster. Moves membership (no orphan
+   * items, no duplicate membership), recomputes derived fields, and closes the
+   * absorbed clusters as MERGED. Transactional.
+   */
+  async mergeClusters(ctx: ServiceContext, raw: unknown) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_MANAGE_CLUSTERS);
+    const { clusterIds, primaryId } = mergeClustersSchema.parse(raw);
+    const others = clusterIds.filter((c) => c !== primaryId);
+
+    const found = await prisma.newsStoryCluster.findMany({ where: { id: { in: clusterIds }, status: "OPEN" }, select: { id: true } });
+    if (found.length !== clusterIds.length) throw ApiError.validation("همه خوشه‌ها باید موجود و باز باشند.");
+
+    const result = await prisma.$transaction(async (tx) => {
+      for (const cid of others) {
+        const links = await tx.newsStoryClusterItem.findMany({ where: { clusterId: cid }, select: { newsItemId: true, similarityScore: true } });
+        for (const l of links) {
+          // Skip items already in the primary (no duplicate membership).
+          const exists = await tx.newsStoryClusterItem.findUnique({ where: { clusterId_newsItemId: { clusterId: primaryId, newsItemId: l.newsItemId } }, select: { newsItemId: true } });
+          if (exists) {
+            await tx.newsStoryClusterItem.delete({ where: { clusterId_newsItemId: { clusterId: cid, newsItemId: l.newsItemId } } });
+          } else {
+            await tx.newsStoryClusterItem.update({
+              where: { clusterId_newsItemId: { clusterId: cid, newsItemId: l.newsItemId } },
+              data: { clusterId: primaryId, isPrimary: false },
+            });
+          }
+        }
+        await tx.newsStoryCluster.update({ where: { id: cid }, data: { status: "MERGED", representativeItemId: null } });
+      }
+      const memberCount = await recomputeCluster(tx, primaryId);
+      return { memberCount };
+    });
+
+    await auditLog({ userId: ctx.actor.id, action: "newsroom.cluster.merge", entityType: "news_cluster", entityId: primaryId, ip: ctx.ip, userAgent: ctx.userAgent, after: { merged: others, members: result.memberCount } });
+    return { primaryId, mergedCount: others.length, memberCount: result.memberCount };
+  },
+
+  /**
+   * Split selected items out of a cluster into a NEW cluster. Refuses to move
+   * every item (that would just rename the cluster). Recomputes both clusters.
+   */
+  async splitCluster(ctx: ServiceContext, raw: unknown) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_MANAGE_CLUSTERS);
+    const { clusterId, itemIds } = splitClusterSchema.parse(raw);
+
+    const links = await prisma.newsStoryClusterItem.findMany({ where: { clusterId }, select: { newsItemId: true } });
+    if (links.length === 0) throw ApiError.notFound("خوشه یافت نشد.");
+    const memberIds = new Set(links.map((l) => l.newsItemId));
+    const moving = itemIds.filter((id) => memberIds.has(id));
+    if (moving.length === 0) throw ApiError.validation("هیچ‌کدام از آیتم‌های انتخابی در این خوشه نیستند.");
+    if (moving.length === links.length) throw ApiError.validation("نمی‌توان همه آیتم‌ها را جدا کرد؛ حداقل یک آیتم باید در خوشه بماند.");
+
+    const newClusterId = await prisma.$transaction(async (tx) => {
+      const created = await tx.newsStoryCluster.create({
+        data: { clusterKey: `split_${randomUUID()}`, status: "OPEN", sourceCount: 1, confidence: 1 },
+      });
+      for (const [i, itemId] of moving.entries()) {
+        await tx.newsStoryClusterItem.update({
+          where: { clusterId_newsItemId: { clusterId, newsItemId: itemId } },
+          data: { clusterId: created.id, isPrimary: i === 0 },
+        });
+      }
+      await recomputeCluster(tx, created.id);
+      await recomputeCluster(tx, clusterId);
+      return created.id;
+    });
+
+    await auditLog({ userId: ctx.actor.id, action: "newsroom.cluster.split", entityType: "news_cluster", entityId: clusterId, ip: ctx.ip, userAgent: ctx.userAgent, after: { newClusterId, moved: moving.length } });
+    return { newClusterId, movedCount: moving.length };
   },
 
   // ── Reprocess ───────────────────────────────────────────────

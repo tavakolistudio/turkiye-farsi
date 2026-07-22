@@ -48,6 +48,31 @@ export async function rejectItemAction(id: string): Promise<FormState> {
   }
 }
 
+export async function mergeClustersAction(clusterIds: string[], primaryId: string): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    const r = await newsroomService.mergeClusters(ctx, { clusterIds, primaryId });
+    revalidatePath("/admin/newsroom/clusters");
+    return { ok: true, message: `${r.mergedCount} خوشه ادغام شد (${r.memberCount} آیتم).` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function splitClusterAction(clusterId: string, itemIds: string[]): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    const r = await newsroomService.splitCluster(ctx, { clusterId, itemIds });
+    revalidatePath("/admin/newsroom/clusters");
+    revalidatePath(`/admin/newsroom/clusters/${clusterId}`);
+    return { ok: true, message: `${r.movedCount} آیتم به خوشه جدید منتقل شد.` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
 export async function reprocessItemAction(id: string): Promise<FormState> {
   try {
     await assertSameOrigin();

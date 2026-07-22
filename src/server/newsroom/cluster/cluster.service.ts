@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 /**
@@ -81,4 +82,34 @@ export async function clusterSourceCount(clusterId: string): Promise<number> {
     select: { newsItem: { select: { sourceId: true } } },
   });
   return new Set(links.map((l) => l.newsItem.sourceId)).size;
+}
+
+/**
+ * Recompute a cluster's derived fields (sourceCount, representativeItemId,
+ * confidence, lastSeenAt) from its current membership, inside a transaction.
+ * Picks the primary item as representative, else the earliest. Confidence is the
+ * mean similarity of members. Returns the remaining member count.
+ */
+export async function recomputeCluster(tx: Prisma.TransactionClient, clusterId: string): Promise<number> {
+  const links = await tx.newsStoryClusterItem.findMany({
+    where: { clusterId },
+    select: { newsItemId: true, similarityScore: true, isPrimary: true, newsItem: { select: { sourceId: true, createdAt: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (links.length === 0) return 0;
+  const distinctSources = new Set(links.map((l) => l.newsItem.sourceId)).size;
+  const primary = links.find((l) => l.isPrimary) ?? links[0];
+  const confidence = links.reduce((a, l) => a + l.similarityScore, 0) / links.length;
+  // Ensure exactly one primary flag.
+  if (!links.some((l) => l.isPrimary)) {
+    await tx.newsStoryClusterItem.update({
+      where: { clusterId_newsItemId: { clusterId, newsItemId: primary.newsItemId } },
+      data: { isPrimary: true },
+    });
+  }
+  await tx.newsStoryCluster.update({
+    where: { id: clusterId },
+    data: { sourceCount: distinctSources, representativeItemId: primary.newsItemId, confidence, lastSeenAt: new Date() },
+  });
+  return links.length;
 }
