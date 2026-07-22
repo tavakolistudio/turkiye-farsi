@@ -1,10 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 const TZ = "Europe/Istanbul";
 
 type Rates = { usdTry: number | null; usdToman: number | null };
+
+/**
+ * A live clock as an external store (the pattern React recommends instead of
+ * calling setState inside an effect). Server snapshot is 0 (placeholder); the
+ * client starts ticking after hydration and updates every 30s. getSnapshot
+ * returns a cached number so it stays referentially stable between ticks.
+ */
+let clockMs = 0;
+function subscribeClock(onChange: () => void): () => void {
+  clockMs = Date.now();
+  const notify = setTimeout(onChange, 0); // publish the initial client value post-hydration
+  const tick = setInterval(() => {
+    clockMs = Date.now();
+    onChange();
+  }, 30_000);
+  return () => {
+    clearTimeout(notify);
+    clearInterval(tick);
+  };
+}
+function useClock(): Date | null {
+  const ms = useSyncExternalStore(
+    subscribeClock,
+    () => clockMs,
+    () => 0,
+  );
+  return ms ? new Date(ms) : null;
+}
 
 const timeFmt = new Intl.DateTimeFormat("fa-IR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 const jalaliFmt = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
@@ -19,17 +47,20 @@ const liraFmt = new Intl.NumberFormat("fa-IR", { minimumFractionDigits: 2, maxim
  * cached same-origin /api/rates endpoint.
  */
 export function MarketTicker() {
-  const [now, setNow] = useState<Date | null>(null);
+  const now = useClock();
   const [rates, setRates] = useState<Rates | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
-    const tick = setInterval(() => setNow(new Date()), 30_000);
+    let active = true;
     fetch("/api/rates")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: Rates | null) => d && setRates(d))
+      .then((d: Rates | null) => {
+        if (active && d) setRates(d);
+      })
       .catch(() => {});
-    return () => clearInterval(tick);
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Placeholder before mount to avoid hydration mismatch on the live values.
