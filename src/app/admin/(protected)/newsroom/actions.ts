@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { assertSameOrigin } from "@/server/security/csrf";
 import { getServiceContext } from "@/server/services/session-context";
 import { newsroomService } from "@/server/newsroom/newsroom.service";
-import { toFormError, type FormState } from "@/lib/forms";
+import { toFormError, str, bool, type FormState } from "@/lib/forms";
+import { DEFAULT_SCORING_WEIGHTS } from "@/server/newsroom/settings";
 
 export async function runCollectionAction(): Promise<FormState> {
   try {
@@ -42,6 +43,98 @@ export async function rejectItemAction(id: string): Promise<FormState> {
     await newsroomService.reject(ctx, id);
     revalidatePath("/admin/newsroom");
     return { ok: true };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+const WEIGHT_KEYS = Object.keys(DEFAULT_SCORING_WEIGHTS) as (keyof typeof DEFAULT_SCORING_WEIGHTS)[];
+
+export async function saveSettingsAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    const num = (k: string) => str(fd, k);
+    const scoringWeights = Object.fromEntries(
+      WEIGHT_KEYS.map((k) => [k, num(`w_${k}`) ?? DEFAULT_SCORING_WEIGHTS[k]]),
+    );
+    await newsroomService.updateSettings(ctx, {
+      isEnabled: bool(fd, "isEnabled"),
+      collectionEnabled: bool(fd, "collectionEnabled"),
+      aiEnabled: bool(fd, "aiEnabled"),
+      draftGenerationEnabled: bool(fd, "draftGenerationEnabled"),
+      maxSourcesPerRun: num("maxSourcesPerRun"),
+      maxItemsPerSource: num("maxItemsPerSource"),
+      maxDraftsPerRun: num("maxDraftsPerRun"),
+      minScoreForAI: num("minScoreForAI"),
+      minScoreForDraft: num("minScoreForDraft"),
+      dailyAiBudget: num("dailyAiBudget"),
+      fetchTimeout: num("fetchTimeout"),
+      retryCount: num("retryCount"),
+      retentionDays: num("retentionDays"),
+      scoringWeights,
+    });
+    revalidatePath("/admin/newsroom/settings");
+    revalidatePath("/admin/newsroom");
+    return { ok: true, message: "تنظیمات ذخیره شد." };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function resetSettingsAction(): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    await newsroomService.resetSettings(ctx);
+    revalidatePath("/admin/newsroom/settings");
+    return { ok: true, message: "به پیش‌فرض بازنشانی شد." };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function saveSourceCollectionAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const id = str(fd, "id");
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    if (!id) throw new Error("missing id");
+    await newsroomService.updateSourceCollection(ctx, id, {
+      feedUrl: str(fd, "feedUrl") ?? "",
+      collectionMethod: str(fd, "collectionMethod") ?? "MANUAL",
+      trustLevel: str(fd, "trustLevel") ?? "50",
+      priority: str(fd, "priority") ?? "0",
+      isEnabled: bool(fd, "isEnabled"),
+      fetchIntervalMinutes: str(fd, "fetchIntervalMinutes") ?? "1440",
+      maxExcerptLength: str(fd, "maxExcerptLength") ?? "400",
+      allowFullTextFetch: bool(fd, "allowFullTextFetch"),
+    });
+    revalidatePath("/admin/newsroom/sources");
+    return { ok: true, message: "منبع ذخیره شد." };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function toggleSourceAction(id: string, enabled: boolean): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    await newsroomService.toggleSourceEnabled(ctx, id, enabled);
+    revalidatePath("/admin/newsroom/sources");
+    return { ok: true };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function testFeedAction(feedUrl: string): Promise<FormState & { result?: unknown }> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    const result = await newsroomService.testFeed(ctx, { feedUrl });
+    return { ok: result.ok, result, message: result.ok ? `${result.itemCount} آیتم یافت شد.` : result.error?.message };
   } catch (e) {
     return toFormError(e);
   }

@@ -1,13 +1,16 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { assertPermission } from "@/server/rbac/authz";
+import { assertPermission, assertAnyPermission } from "@/server/rbac/authz";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import { ApiError } from "@/lib/api/errors";
 import { auditLog } from "@/server/audit/log";
 import { generateUniqueSlug } from "@/lib/slug";
 import type { ServiceContext } from "@/server/services/context";
 import { newsroomPipeline } from "./pipeline.service";
+import { newsroomSettingsService, coerceSettings, DEFAULT_NEWSROOM_SETTINGS, type NewsroomSettings } from "./settings";
+import { newsroomSettingsSchema, newsroomSourceCollectionSchema, testFeedSchema } from "@/lib/validations/newsroom";
+import { testFeed as runFeedTest } from "./fetch/source-test.service";
 import { buildDraft, type DraftSourceLink } from "./draft/persian-draft.service";
 import type { ClassificationResult, TrustResult, TrustVerification } from "./types";
 
@@ -16,6 +19,15 @@ import type { ClassificationResult, TrustResult, TrustVerification } from "./typ
  * audited. Draft creation ALWAYS produces a private DRAFT Article — never
  * PUBLISHED/APPROVED/SCHEDULED — with full provenance and attached sources.
  */
+
+/** Audit-safe summary of the powerful toggles (no secrets). */
+function killSwitchSummary(s: NewsroomSettings) {
+  return {
+    isEnabled: s.isEnabled, collectionEnabled: s.collectionEnabled,
+    aiEnabled: s.aiEnabled, draftGenerationEnabled: s.draftGenerationEnabled,
+    dailyAiBudget: s.dailyAiBudget,
+  };
+}
 
 export interface ItemListFilter {
   bucket?: "URGENT" | "HIGH" | "REVIEW" | "LOW";
@@ -201,6 +213,110 @@ export const newsroomService = {
 
     await auditLog({ userId: ctx.actor.id, action: "newsroom.create_draft", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: item.id } });
     return { articleId: article.id, slug: article.slug };
+  },
+
+  // ── Settings ────────────────────────────────────────────────
+  /** Read settings. Requires view. */
+  async getSettings(ctx: ServiceContext): Promise<NewsroomSettings> {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_VIEW);
+    return newsroomSettingsService.get();
+  },
+
+  /** Update settings. Requires manage_scoring OR the sensitive settings perm. */
+  async updateSettings(ctx: ServiceContext, raw: unknown): Promise<NewsroomSettings> {
+    assertAnyPermission(ctx.actor, [PERMISSIONS.NEWSROOM_MANAGE_SCORING, PERMISSIONS.SETTINGS_MANAGE]);
+    const parsed = newsroomSettingsSchema.parse(raw);
+    const before = await newsroomSettingsService.get();
+    const saved = await newsroomSettingsService.save(coerceSettings({ ...before, ...parsed }));
+    await auditLog({
+      userId: ctx.actor.id, action: "newsroom.settings.update", entityType: "site_setting",
+      entityId: "newsroom", ip: ctx.ip, userAgent: ctx.userAgent,
+      before: killSwitchSummary(before), after: killSwitchSummary(saved),
+    });
+    return saved;
+  },
+
+  /** Reset to conservative defaults (collection + AI OFF). */
+  async resetSettings(ctx: ServiceContext): Promise<NewsroomSettings> {
+    assertAnyPermission(ctx.actor, [PERMISSIONS.NEWSROOM_MANAGE_SCORING, PERMISSIONS.SETTINGS_MANAGE]);
+    const saved = await newsroomSettingsService.save(DEFAULT_NEWSROOM_SETTINGS);
+    await auditLog({
+      userId: ctx.actor.id, action: "newsroom.settings.reset", entityType: "site_setting",
+      entityId: "newsroom", ip: ctx.ip, userAgent: ctx.userAgent,
+    });
+    return saved;
+  },
+
+  // ── Sources (collection config) ─────────────────────────────
+  async listCollectionSources(ctx: ServiceContext) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_VIEW);
+    return prisma.source.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ isEnabled: "desc" }, { priority: "desc" }, { name: "asc" }],
+      select: {
+        id: true, name: true, slug: true, feedUrl: true, collectionMethod: true,
+        isEnabled: true, trustLevel: true, priority: true, isOfficial: true,
+        lastFetchedAt: true, lastSuccessfulFetchAt: true, consecutiveFailures: true,
+        lastEtag: true, lastModifiedHeader: true, fetchIntervalMinutes: true, maxExcerptLength: true,
+        allowFullTextFetch: true,
+        _count: { select: { ingestedItems: true } },
+      },
+    });
+  },
+
+  async updateSourceCollection(ctx: ServiceContext, id: string, raw: unknown) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_MANAGE_SOURCES);
+    const input = newsroomSourceCollectionSchema.parse(raw);
+    const existing = await prisma.source.findFirst({ where: { id, deletedAt: null }, select: { id: true, name: true, isEnabled: true } });
+    if (!existing) throw ApiError.notFound("منبع یافت نشد.");
+    // A source can only be enabled for collection if it has a machine-readable feed.
+    if (input.isEnabled && input.collectionMethod !== "MANUAL" && !input.feedUrl) {
+      throw ApiError.validation("برای فعال‌سازی جمع‌آوری، نشانی فید لازم است.");
+    }
+    const updated = await prisma.source.update({
+      where: { id },
+      data: {
+        feedUrl: input.feedUrl ?? null,
+        collectionMethod: input.collectionMethod,
+        trustLevel: input.trustLevel,
+        priority: input.priority,
+        isEnabled: input.isEnabled,
+        fetchIntervalMinutes: input.fetchIntervalMinutes,
+        maxExcerptLength: input.maxExcerptLength,
+        allowFullTextFetch: input.allowFullTextFetch,
+        // Any config change confirms a human reviewed collection for this source.
+        termsReviewedAt: new Date(),
+        robotsReviewedAt: new Date(),
+      },
+    });
+    await auditLog({
+      userId: ctx.actor.id, action: "newsroom.source.update", entityType: "source", entityId: id,
+      ip: ctx.ip, userAgent: ctx.userAgent,
+      before: { isEnabled: existing.isEnabled }, after: { isEnabled: updated.isEnabled, method: updated.collectionMethod },
+    });
+    return updated;
+  },
+
+  async toggleSourceEnabled(ctx: ServiceContext, id: string, enabled: boolean) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_MANAGE_SOURCES);
+    const existing = await prisma.source.findFirst({ where: { id, deletedAt: null }, select: { id: true, feedUrl: true, collectionMethod: true } });
+    if (!existing) throw ApiError.notFound("منبع یافت نشد.");
+    if (enabled && existing.collectionMethod !== "MANUAL" && !existing.feedUrl) {
+      throw ApiError.validation("برای فعال‌سازی، ابتدا نشانی فید را تنظیم کنید.");
+    }
+    const updated = await prisma.source.update({ where: { id }, data: { isEnabled: enabled } });
+    await auditLog({
+      userId: ctx.actor.id, action: enabled ? "newsroom.source.enable" : "newsroom.source.disable",
+      entityType: "source", entityId: id, ip: ctx.ip, userAgent: ctx.userAgent,
+    });
+    return updated;
+  },
+
+  /** Test a feed URL without persisting anything (SSRF-hardened). */
+  async testFeed(ctx: ServiceContext, raw: unknown) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_MANAGE_SOURCES);
+    const { feedUrl } = testFeedSchema.parse(raw);
+    return runFeedTest(feedUrl);
   },
 
   async stats(ctx: ServiceContext) {

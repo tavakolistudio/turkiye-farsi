@@ -664,6 +664,10 @@ model Source {
   // than a short excerpt. Default false — copyright-safe.
   allowFullTextFetch    Boolean          @default(false)
   maxExcerptLength      Int              @default(400)
+  // HTTP caching validators from the last successful fetch, so the next fetch
+  // can do a conditional GET (If-None-Match / If-Modified-Since).
+  lastEtag              String?
+  lastModifiedHeader    String?
 
   articles      ArticleSource[]
   ingestedItems IngestedNewsItem[]

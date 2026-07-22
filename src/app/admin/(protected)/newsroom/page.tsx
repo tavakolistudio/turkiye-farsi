@@ -8,6 +8,7 @@ import { hasPermission } from "@/server/rbac/authz";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { RunCollectionButton, ItemActions } from "./newsroom-actions";
 
 export const metadata: Metadata = { title: "اتاق خبر هوشمند", robots: { index: false } };
@@ -62,7 +63,18 @@ export default async function NewsroomPage({
             {" · "}هوش مصنوعی: {settings.aiEnabled ? "فعال" : "غیرفعال"}
           </p>
         </div>
-        <RunCollectionButton canRun={canRun} />
+        <div className="flex items-center gap-2">
+          <Link href="/admin/newsroom/settings" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            تنظیمات
+          </Link>
+          <Link href="/admin/newsroom/sources" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            منابع جمع‌آوری
+          </Link>
+          <Link href="/admin/newsroom/clusters" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            خوشه‌ها
+          </Link>
+          <RunCollectionButton canRun={canRun} />
+        </div>
       </div>
 
       {/* Stats */}

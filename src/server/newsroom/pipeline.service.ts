@@ -129,7 +129,11 @@ async function fetchAndProcessSource(
   const out: SourceOutcome = { fetched: 0, created: 0, duplicates: 0, rejected: 0, failed: 0 };
   const startedAt = new Date();
 
-  const res = await safeFetchFeed(source.feedUrl!, { timeoutMs: settings.fetchTimeout });
+  const res = await safeFetchFeed(source.feedUrl!, {
+    timeoutMs: settings.fetchTimeout,
+    etag: source.lastEtag,
+    lastModified: source.lastModifiedHeader,
+  });
   if (res.notModified) {
     await touchSource(source.id, { success: true });
     await logJob({ batchId, stage: "FETCH", status: "SKIPPED", metadata: { source: source.slug, notModified: true }, startedAt });
@@ -151,7 +155,7 @@ async function fetchAndProcessSource(
       await logJob({ batchId, newsItemId: null, stage: "NORMALIZE", status: "FAILED", error: err, metadata: { source: source.slug } });
     }
   }
-  await touchSource(source.id, { success: true });
+  await touchSource(source.id, { success: true, etag: res.etag, lastModified: res.lastModified });
   return out;
 }
 
@@ -293,12 +297,20 @@ async function loadTaxonomy() {
   return { categories, tags };
 }
 
-async function touchSource(id: string, opts: { success: boolean }) {
+async function touchSource(id: string, opts: { success: boolean; etag?: string | null; lastModified?: string | null }) {
   await prisma.source.update({
     where: { id },
     data: {
       lastFetchedAt: new Date(),
-      ...(opts.success ? { lastSuccessfulFetchAt: new Date(), consecutiveFailures: 0 } : { consecutiveFailures: { increment: 1 } }),
+      ...(opts.success
+        ? {
+            lastSuccessfulFetchAt: new Date(),
+            consecutiveFailures: 0,
+            // Store caching validators only when the server actually returned them.
+            ...(opts.etag !== undefined ? { lastEtag: opts.etag } : {}),
+            ...(opts.lastModified !== undefined ? { lastModifiedHeader: opts.lastModified } : {}),
+          }
+        : { consecutiveFailures: { increment: 1 } }),
     },
   });
 }
