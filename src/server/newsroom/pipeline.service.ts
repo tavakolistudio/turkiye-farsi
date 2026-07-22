@@ -183,15 +183,17 @@ async function processItem(
 
   let clusterSibling: string | null = null;
   if (dup) {
-    if (dup.level <= 3) {
+    // Levels 1-2 (same canonical URL / same source externalId) are true
+    // duplicates → skip. Levels 3-4 (same/similar title) are the same STORY:
+    // from the SAME source they are a re-post (skip); from a DIFFERENT source
+    // they are kept and clustered together for multi-source confirmation.
+    if (dup.level <= 2) {
       await logJob({ batchId, stage: "DEDUPLICATE", status: "SKIPPED", metadata: { level: dup.level, of: dup.duplicateOfId } });
       return "duplicate";
     }
-    // Level 4 (fuzzy): same story. If it's the same source, treat as duplicate;
-    // if a different source, keep it and cluster for multi-source confirmation.
     const other = await prisma.ingestedNewsItem.findUnique({ where: { id: dup.duplicateOfId }, select: { sourceId: true } });
     if (other?.sourceId === source.id) {
-      await logJob({ batchId, stage: "DEDUPLICATE", status: "SKIPPED", metadata: { level: 4, sameSource: true } });
+      await logJob({ batchId, stage: "DEDUPLICATE", status: "SKIPPED", metadata: { level: dup.level, sameSource: true } });
       return "duplicate";
     }
     clusterSibling = dup.duplicateOfId;

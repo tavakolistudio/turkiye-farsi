@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { ApiError, type ErrorCode } from "./errors";
+import { AuthenticationError, AuthorizationError, CsrfError } from "@/server/auth/errors";
 
 /** Standard success/error envelope shared by every v1 endpoint. */
 export interface ApiMeta {
@@ -61,6 +62,10 @@ export function failFrom(err: unknown) {
       err.flatten().fieldErrors,
     );
   }
+  // Map RBAC/CSRF errors to their proper status codes (never a generic 500).
+  if (err instanceof AuthenticationError) return fail("UNAUTHENTICATED", err.message, 401);
+  if (err instanceof AuthorizationError) return fail("FORBIDDEN", err.message, 403);
+  if (err instanceof CsrfError) return fail("BAD_REQUEST", err.message, 400);
   console.error("[api] unhandled error:", err);
   return fail("INTERNAL", "خطای داخلی سرور.", 500);
 }
