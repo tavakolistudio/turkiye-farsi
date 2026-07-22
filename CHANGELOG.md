@@ -2,6 +2,30 @@
 
 All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
 
+## Phase 10A — AI Editorial Newsroom (collection · dedup · scoring · draft queue)
+### Added
+- **Ingestion data model**: extended `Source` (feed URL, collection method, trust
+  level, enable/fetch bookkeeping) plus `IngestedNewsItem`, `NewsFetchBatch`,
+  `NewsPipelineJobLog`, `NewsStoryCluster(+Item)`, `NewsDraftProvenance`. Additive
+  migrations with RLS on the new tables.
+- **Safe collection pipeline**: SSRF-hardened fetch (public-IP-only, per-redirect
+  re-validation, size/timeout/redirect caps, conditional GET), XXE-safe feed
+  parsing (RSS/Atom/JSON), Persian normalization, tracking-free URL canonical.
+- **Dedup + clustering** (5 levels), **explainable importance scoring**
+  (configurable weights, 0–100 buckets), **trust evaluation** (social cap,
+  official rules, legal-claim fact-check).
+- **AI provider abstraction** (Disabled/Mock/OpenAI) with Zod-validated output,
+  prompt-injection boundaries, token/cost accounting and a daily budget guard.
+  **Copyright-safe Persian draft** builder — DRAFT-only, with source attribution.
+- **Review queue** `/admin/newsroom`, permission-gated admin API, and a
+  `CRON_SECRET`-protected daily collection cron. Real kill switches
+  (`NewsroomSettings`); AI and collection default OFF.
+- Docs: `AI_NEWSROOM.md`, `NEWSROOM_SOURCES_POLICY.md`, permanent rules in
+  `AGENTS.md`. 40 unit tests.
+### Guarantees
+- No auto-publish, no AI images, no social auto-posting, no full copyrighted
+  text stored, no scraping of disallowed sources.
+
 ## Production deployment (Vercel)
 ### Changed
 - `vercel-build` is now `prisma migrate deploy && next build` — migrations apply
