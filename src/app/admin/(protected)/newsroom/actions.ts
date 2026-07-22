@@ -48,6 +48,23 @@ export async function rejectItemAction(id: string): Promise<FormState> {
   }
 }
 
+export async function cleanupAction(dryRun: boolean): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    const r = await newsroomService.cleanup(ctx, dryRun);
+    const msg = dryRun
+      ? `پیش‌نمایش: ${r.rejectedItemsReviewed} آیتم ردشده و ${r.jobLogsArchived} لاگ مشمول پاک‌سازی (قدیمی‌تر از ${r.retentionDays} روز).`
+      : r.locked
+        ? `انجام شد: ${r.rejectedItemsSoftDeleted} آیتم حذف نرم، ${r.jobLogsArchived} لاگ آرشیو.`
+        : "یک پاک‌سازی دیگر در حال اجراست.";
+    if (!dryRun) revalidatePath("/admin/newsroom");
+    return { ok: true, message: msg };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
 export async function mergeClustersAction(clusterIds: string[], primaryId: string): Promise<FormState> {
   try {
     await assertSameOrigin();

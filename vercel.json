@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/newsroom-collect",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/newsroom-cleanup",
+      "schedule": "0 4 * * *"
     }
   ]
 }

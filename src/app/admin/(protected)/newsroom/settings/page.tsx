@@ -7,6 +7,7 @@ import { hasAnyPermission } from "@/server/rbac/authz";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import { buttonVariants } from "@/components/ui/button";
 import { SettingsForm } from "./settings-form";
+import { CleanupCard } from "./cleanup-card";
 
 export const metadata: Metadata = { title: "تنظیمات اتاق خبر", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function NewsroomSettingsPage() {
         </Link>
       </div>
       <SettingsForm initial={settings} canEdit={canEdit} />
+      <CleanupCard canRun={canEdit} retentionDays={settings.retentionDays} />
     </div>
   );
 }

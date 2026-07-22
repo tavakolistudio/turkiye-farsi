@@ -19,6 +19,7 @@ import { classify } from "./classify/classification.service";
 import { clusterSourceCount, recomputeCluster } from "./cluster/cluster.service";
 import { mergeClustersSchema, splitClusterSchema } from "@/lib/validations/newsroom";
 import { revisionService } from "@/server/services/revision.service";
+import { runCleanup } from "./cleanup.service";
 import { randomUUID } from "node:crypto";
 
 /**
@@ -68,6 +69,7 @@ export const newsroomService = {
     const pageSize = Math.min(Math.max(filter.pageSize ?? 20, 1), 100);
     const page = Math.max(filter.page ?? 1, 1);
     const where: Prisma.IngestedNewsItemWhereInput = {
+      deletedAt: null,
       ...(filter.bucket ? { scoreBucket: filter.bucket } : {}),
       ...(filter.status ? { ingestionStatus: filter.status as never } : {}),
     };
@@ -580,6 +582,20 @@ export const newsroomService = {
     assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_MANAGE_SOURCES);
     const { feedUrl } = testFeedSchema.parse(raw);
     return runFeedTest(feedUrl);
+  },
+
+  /** Run (or dry-run) retention cleanup. Gated by scoring/settings perm. */
+  async cleanup(ctx: ServiceContext, dryRun: boolean) {
+    assertAnyPermission(ctx.actor, [PERMISSIONS.NEWSROOM_MANAGE_SCORING, PERMISSIONS.SETTINGS_MANAGE]);
+    const report = await runCleanup({ dryRun });
+    if (!dryRun) {
+      await auditLog({
+        userId: ctx.actor.id, action: "newsroom.cleanup", entityType: "newsroom", entityId: "cleanup",
+        ip: ctx.ip, userAgent: ctx.userAgent,
+        after: { softDeleted: report.rejectedItemsSoftDeleted, logsArchived: report.jobLogsArchived },
+      });
+    }
+    return report;
   },
 
   async stats(ctx: ServiceContext) {
