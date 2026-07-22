@@ -13,12 +13,36 @@ import { newsroomSettingsSchema, newsroomSourceCollectionSchema, testFeedSchema 
 import { testFeed as runFeedTest } from "./fetch/source-test.service";
 import { buildDraft, type DraftSourceLink } from "./draft/persian-draft.service";
 import type { ClassificationResult, TrustResult, TrustVerification } from "./types";
+import { scoreImportance, scoreBucket } from "./scoring/importance.service";
+import { evaluateTrust, type ClusterSourceInfo } from "./scoring/trust.service";
+import { classify } from "./classify/classification.service";
+import { clusterSourceCount } from "./cluster/cluster.service";
+import { revisionService } from "@/server/services/revision.service";
 
 /**
  * Admin-facing newsroom operations. Every method is permission-gated and
  * audited. Draft creation ALWAYS produces a private DRAFT Article — never
  * PUBLISHED/APPROVED/SCHEDULED — with full provenance and attached sources.
  */
+
+async function categoriesForClassify() {
+  return prisma.category.findMany({ where: { deletedAt: null }, select: { slug: true, name: true } });
+}
+async function tagsForClassify() {
+  return prisma.tag.findMany({ where: { deletedAt: null }, select: { slug: true, name: true }, take: 300 });
+}
+async function clusterSourceInfosFor(clusterId: string): Promise<ClusterSourceInfo[]> {
+  const links = await prisma.newsStoryClusterItem.findMany({
+    where: { clusterId },
+    select: { newsItem: { select: { sourceUrl: true, source: { select: { sourceType: true, isOfficial: true, trustLevel: true } } } } },
+  });
+  return links.map((l) => ({
+    sourceType: l.newsItem.source.sourceType,
+    isOfficial: l.newsItem.source.isOfficial,
+    trustLevel: l.newsItem.source.trustLevel,
+    hasArticleUrl: !!l.newsItem.sourceUrl,
+  }));
+}
 
 /** Audit-safe summary of the powerful toggles (no secrets). */
 function killSwitchSummary(s: NewsroomSettings) {
@@ -213,6 +237,135 @@ export const newsroomService = {
 
     await auditLog({ userId: ctx.actor.id, action: "newsroom.create_draft", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: item.id } });
     return { articleId: article.id, slug: article.slug };
+  },
+
+  // ── Reprocess ───────────────────────────────────────────────
+  /**
+   * Re-run classification, importance scoring and trust evaluation for an
+   * existing item using the CURRENT settings/weights. Idempotent — safe to run
+   * repeatedly. Does not create or touch any draft, and never re-fetches.
+   */
+  async reprocessItem(ctx: ServiceContext, id: string) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_REVIEW);
+    const item = await prisma.ingestedNewsItem.findUnique({
+      where: { id },
+      include: { source: true, clusterLinks: { select: { clusterId: true } } },
+    });
+    if (!item) throw ApiError.notFound("آیتم خبری یافت نشد.");
+
+    const settings = await newsroomSettingsService.get();
+    const clusterId = item.clusterLinks[0]?.clusterId ?? null;
+    const srcCount = clusterId ? await clusterSourceCount(clusterId) : 1;
+
+    const importance = scoreImportance(
+      {
+        normalizedText: item.normalizedText ?? `${item.title} ${item.excerpt ?? ""}`,
+        sourceTrustLevel: item.source.trustLevel,
+        sourceIsOfficial: item.source.isOfficial,
+        clusterSourceCount: srcCount,
+        publishedAt: item.publishedAt,
+      },
+      settings.scoringWeights,
+    );
+    const bucket = scoreBucket(importance.ruleScore);
+    const classification = classify(`${item.title} ${item.excerpt ?? ""}`, await categoriesForClassify(), await tagsForClassify());
+    const trust = evaluateTrust({
+      sources: clusterId ? await clusterSourceInfosFor(clusterId) : [{ sourceType: item.source.sourceType, isOfficial: item.source.isOfficial, trustLevel: item.source.trustLevel, hasArticleUrl: !!item.sourceUrl }],
+      hasLegalClaim: classification.sensitivityLevel === "HIGH",
+    });
+
+    // Preserve DRAFTED items; otherwise reflect the new bucket.
+    const status = item.ingestionStatus === "DRAFTED" ? "DRAFTED" : bucket === "REJECT" ? "REJECTED" : "SCORED";
+    const updated = await prisma.ingestedNewsItem.update({
+      where: { id },
+      data: {
+        ingestionStatus: status,
+        ruleScore: importance.ruleScore,
+        finalScore: item.aiScore != null ? Math.round((importance.ruleScore + item.aiScore) / 2) : importance.ruleScore,
+        scoreBucket: bucket,
+        trustScore: trust.trustScore,
+        verificationStatus: trust.verificationStatus,
+        suggestedCategorySlug: classification.primaryCategorySlug,
+        scoreReasons: { importance: importance.reasons, trust: trust.reasonCodes } as object,
+        rejectionReason: bucket === "REJECT" && status !== "DRAFTED" ? "امتیاز اهمیت پایین" : null,
+      },
+    });
+    await auditLog({ userId: ctx.actor.id, action: "newsroom.reprocess", entityType: "news_item", entityId: id, ip: ctx.ip, userAgent: ctx.userAgent, after: { ruleScore: importance.ruleScore, bucket } });
+    return { id: updated.id, ruleScore: updated.ruleScore, finalScore: updated.finalScore, scoreBucket: updated.scoreBucket, trustScore: updated.trustScore };
+  },
+
+  // ── Regenerate draft ────────────────────────────────────────
+  /**
+   * Rebuild the Persian draft for an item's existing article. Refuses to clobber
+   * a human-edited or advanced draft unless `force` is set; always snapshots a
+   * revision first so nothing is lost. Never publishes.
+   */
+  async regenerateDraft(ctx: ServiceContext, id: string, opts: { force?: boolean } = {}) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_REGENERATE);
+    const prov = await prisma.newsDraftProvenance.findFirst({
+      where: { primaryItemId: id },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!prov?.articleId) throw ApiError.notFound("برای این خبر هنوز پیش‌نویسی ساخته نشده است.");
+    const article = await prisma.article.findUnique({ where: { id: prov.articleId } });
+    if (!article) throw ApiError.notFound("مطلب مرتبط یافت نشد.");
+    if (article.status !== "DRAFT") {
+      throw ApiError.validation("این مطلب از حالت پیش‌نویس خارج شده و بازتولید نمی‌شود.");
+    }
+    // Guard against clobbering human edits.
+    const humanEdited = (article.currentVersion ?? 0) > 0 || (await prisma.articleRevision.count({ where: { articleId: article.id } })) > 0;
+    if (humanEdited && !opts.force) {
+      throw ApiError.conflict("این پیش‌نویس ویرایش انسانی دارد؛ برای بازنویسی، تأیید صریح لازم است (force).");
+    }
+
+    const item = await prisma.ingestedNewsItem.findUnique({
+      where: { id },
+      include: { source: true, clusterLinks: { include: { cluster: { include: { items: { include: { newsItem: { include: { source: true } } } } } } } } },
+    });
+    if (!item) throw ApiError.notFound("آیتم خبری یافت نشد.");
+
+    const clusterItems = item.clusterLinks[0]?.cluster.items ?? [];
+    const basis = clusterItems.length ? clusterItems.map((ci) => ({ source: ci.newsItem.source, url: ci.newsItem.sourceUrl })) : [{ source: item.source, url: item.sourceUrl }];
+    const sourceMap = new Map<string, { name: string; url: string }>();
+    for (const b of basis) if (b.source && !sourceMap.has(b.source.id)) sourceMap.set(b.source.id, { name: b.source.name, url: b.url });
+    const sourceLinks: DraftSourceLink[] = [...sourceMap.values()].map((s, i) => ({ name: s.name, url: s.url, isPrimary: i === 0 }));
+
+    const classification: ClassificationResult = {
+      primaryCategorySlug: item.suggestedCategorySlug, secondaryCategorySlugs: [], suggestedTagSlugs: [],
+      affectedAudience: null, geographicScope: null, contentType: null,
+      sensitivityLevel: item.verificationStatus ? "HIGH" : "LOW", needsReview: false,
+    };
+    const trust: TrustResult = {
+      trustScore: item.trustScore ?? 0, verificationStatus: (item.verificationStatus ?? "UNVERIFIED") as TrustVerification,
+      officialSourceCount: 0, independentSourceCount: sourceMap.size, socialOnly: false,
+      conflictingClaims: item.verificationStatus === "CONFLICTING", primarySourceAvailable: false,
+      requiresHumanFactCheck: item.verificationStatus !== "OFFICIAL_CONFIRMED", reasonCodes: [],
+    };
+    const draft = buildDraft({ title: item.title, excerpt: item.excerpt, publishedAt: item.publishedAt, classification, trust, sources: sourceLinks });
+
+    await prisma.$transaction(async (tx) => {
+      // Snapshot the current content before overwriting (nothing is lost).
+      await revisionService.createSnapshot(tx, article.id, ctx.actor.id, "بازتولید خودکار پیش‌نویس");
+      await tx.article.update({
+        where: { id: article.id },
+        data: {
+          title: draft.title, subtitle: draft.subtitle, summary: draft.summary,
+          bodyJson: draft.bodyJson as unknown as Prisma.InputJsonValue,
+          whyItMatters: draft.whyItMatters, whoIsAffected: draft.whoIsAffected, whatToDo: draft.whatToDo,
+          metaTitle: draft.metaTitle, metaDescription: draft.metaDescription,
+          status: "DRAFT", // stays DRAFT — never auto-advanced
+          currentVersion: { increment: 1 },
+        },
+      });
+      await tx.newsDraftProvenance.update({
+        where: { id: prov.id },
+        data: { aiGeneratedAt: prov.generatedByAI ? new Date() : prov.aiGeneratedAt, finalScore: item.finalScore, trustScore: item.trustScore },
+      });
+    });
+
+    await auditLog({ userId: ctx.actor.id, action: "newsroom.regenerate", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: id, forced: !!opts.force } });
+    // Rule-based regeneration has no AI cost; AI-assisted regen would report here.
+    return { articleId: article.id, costEstimate: 0 };
   },
 
   // ── Settings ────────────────────────────────────────────────

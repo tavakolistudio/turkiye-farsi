@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
-import { runCollectionAction, createDraftAction, rejectItemAction } from "./actions";
+import { runCollectionAction, createDraftAction, rejectItemAction, reprocessItemAction, regenerateDraftAction } from "./actions";
 import type { FormState } from "@/lib/forms";
 
 /** "Run collection now" button (permission enforced server-side). */
@@ -33,19 +33,26 @@ export function RunCollectionButton({ canRun }: { canRun: boolean }) {
   );
 }
 
-/** Per-item "create draft" / "reject" actions. */
+/** Per-item actions: create draft / reject / reprocess / regenerate. */
 export function ItemActions({
   id,
+  status,
   canDraft,
   canReject,
+  canReprocess,
+  canRegenerate,
 }: {
   id: string;
+  status: string;
   canDraft: boolean;
   canReject: boolean;
+  canReprocess: boolean;
+  canRegenerate: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<FormState | null>(null);
+  const isDrafted = status === "DRAFTED";
 
   function run(fn: (id: string) => Promise<FormState>) {
     start(async () => {
@@ -55,15 +62,37 @@ export function ItemActions({
     });
   }
 
+  function regenerate() {
+    start(async () => {
+      let r = await regenerateDraftAction(id, false);
+      // If the draft was human-edited (409/conflict), confirm a forced rewrite.
+      if (!r.ok && r.error && confirm("این پیش‌نویس ویرایش انسانی دارد. بازنویسی اجباری انجام شود؟")) {
+        r = await regenerateDraftAction(id, true);
+      }
+      setResult(r);
+      if (r.ok) router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        {canDraft && (
+        {canDraft && !isDrafted && (
           <Button size="sm" variant="outline" disabled={pending} onClick={() => run(createDraftAction)}>
             ساخت پیش‌نویس
           </Button>
         )}
-        {canReject && (
+        {canRegenerate && isDrafted && (
+          <Button size="sm" variant="outline" disabled={pending} onClick={regenerate}>
+            بازتولید پیش‌نویس
+          </Button>
+        )}
+        {canReprocess && (
+          <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(reprocessItemAction)}>
+            بازپردازش
+          </Button>
+        )}
+        {canReject && !isDrafted && (
           <Button
             size="sm"
             variant="ghost"

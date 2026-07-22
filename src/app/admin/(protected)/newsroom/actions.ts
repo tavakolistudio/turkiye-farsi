@@ -48,6 +48,30 @@ export async function rejectItemAction(id: string): Promise<FormState> {
   }
 }
 
+export async function reprocessItemAction(id: string): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    const r = await newsroomService.reprocessItem(ctx, id);
+    revalidatePath("/admin/newsroom");
+    return { ok: true, message: `بازپردازش شد — امتیاز: ${r.finalScore ?? "—"}` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function regenerateDraftAction(id: string, force = false): Promise<FormState> {
+  try {
+    await assertSameOrigin();
+    const ctx = await getServiceContext();
+    await newsroomService.regenerateDraft(ctx, id, { force });
+    revalidatePath("/admin/newsroom");
+    return { ok: true, message: "پیش‌نویس بازتولید شد." };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
 const WEIGHT_KEYS = Object.keys(DEFAULT_SCORING_WEIGHTS) as (keyof typeof DEFAULT_SCORING_WEIGHTS)[];
 
 export async function saveSettingsAction(_prev: FormState, fd: FormData): Promise<FormState> {
