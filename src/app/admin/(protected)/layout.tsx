@@ -24,6 +24,7 @@ export default async function AdminLayout({
     { href: "/admin/articles", label: "مطالب", show: hasPermission(user, PERMISSIONS.ARTICLE_VIEW) },
     { href: "/admin/editorial/review-queue", label: "صف بررسی", show: hasPermission(user, PERMISSIONS.ARTICLE_VIEW) },
     { href: "/admin/editorial/scheduled", label: "زمان‌بندی‌شده", show: hasPermission(user, PERMISSIONS.ARTICLE_SCHEDULE) },
+    { href: "/admin/newsroom", label: "اتاق خبر هوشمند", show: hasPermission(user, PERMISSIONS.NEWSROOM_VIEW) },
     { href: "/admin/notifications", label: "اعلان‌ها", show: hasPermission(user, PERMISSIONS.ARTICLE_VIEW) },
     { href: "/admin/categories", label: "دسته‌بندی‌ها", show: hasPermission(user, PERMISSIONS.CATEGORY_VIEW) },
     { href: "/admin/tags", label: "برچسب‌ها", show: hasPermission(user, PERMISSIONS.TAG_VIEW) },

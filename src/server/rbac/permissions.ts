@@ -74,6 +74,19 @@ export const PERMISSIONS = {
   // ── Advertising ───────────────────────────────────────────
   AD_MANAGE: "ad.manage",
 
+  // ── Newsroom (Phase 10A) ──────────────────────────────────
+  NEWSROOM_VIEW: "newsroom.view",
+  NEWSROOM_MANAGE_SOURCES: "newsroom.manage_sources",
+  NEWSROOM_RUN_COLLECTION: "newsroom.run_collection",
+  NEWSROOM_REVIEW: "newsroom.review",
+  NEWSROOM_REJECT: "newsroom.reject",
+  NEWSROOM_CREATE_DRAFT: "newsroom.create_draft",
+  NEWSROOM_REGENERATE: "newsroom.regenerate",
+  NEWSROOM_MANAGE_CLUSTERS: "newsroom.manage_clusters",
+  NEWSROOM_MANAGE_SCORING: "newsroom.manage_scoring",
+  NEWSROOM_VIEW_COSTS: "newsroom.view_costs",
+  NEWSROOM_VIEW_LOGS: "newsroom.view_logs",
+
   // ── System ────────────────────────────────────────────────
   SETTINGS_MANAGE: "settings.manage",
   SETTINGS_SENSITIVE: "settings.sensitive",
@@ -188,6 +201,18 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     P.REPORT_MANAGE,
     P.ANALYTICS_VIEW,
     P.AUDIT_VIEW,
+    // Newsroom — full editorial control (all but sensitive system settings).
+    P.NEWSROOM_VIEW,
+    P.NEWSROOM_MANAGE_SOURCES,
+    P.NEWSROOM_RUN_COLLECTION,
+    P.NEWSROOM_REVIEW,
+    P.NEWSROOM_REJECT,
+    P.NEWSROOM_CREATE_DRAFT,
+    P.NEWSROOM_REGENERATE,
+    P.NEWSROOM_MANAGE_CLUSTERS,
+    P.NEWSROOM_MANAGE_SCORING,
+    P.NEWSROOM_VIEW_COSTS,
+    P.NEWSROOM_VIEW_LOGS,
   ],
   EDITOR: [
     ...CONTENT_VIEW,
@@ -213,6 +238,11 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     P.MEDIA_UPDATE,
     P.MEDIA_REPLACE,
     P.ANALYTICS_VIEW,
+    // Newsroom — day-to-day review and drafting.
+    P.NEWSROOM_VIEW,
+    P.NEWSROOM_REVIEW,
+    P.NEWSROOM_CREATE_DRAFT,
+    P.NEWSROOM_REJECT,
   ],
   AUTHOR: [
     P.ARTICLE_VIEW,
@@ -224,6 +254,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     P.SOURCE_VIEW,
     P.MEDIA_VIEW,
     P.MEDIA_UPLOAD,
+    P.NEWSROOM_VIEW,
   ],
   REPORTER: [
     P.ARTICLE_VIEW,
@@ -234,6 +265,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     P.SOURCE_VIEW,
     P.MEDIA_VIEW,
     P.MEDIA_UPLOAD,
+    P.NEWSROOM_VIEW,
   ],
   ADVERTISING_MANAGER: [P.AD_MANAGE, P.ANALYTICS_VIEW],
 };
@@ -291,6 +323,17 @@ const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   "settings.sensitive": "دسترسی به تنظیمات حساس",
   "analytics.view": "مشاهده آمار",
   "audit.view": "مشاهده Audit Log",
+  "newsroom.view": "مشاهده اتاق خبر",
+  "newsroom.manage_sources": "مدیریت منابع اتاق خبر",
+  "newsroom.run_collection": "اجرای جمع‌آوری اخبار",
+  "newsroom.review": "بررسی صف اتاق خبر",
+  "newsroom.reject": "رد آیتم اتاق خبر",
+  "newsroom.create_draft": "ساخت پیش‌نویس از خبر",
+  "newsroom.regenerate": "بازتولید پیش‌نویس",
+  "newsroom.manage_clusters": "مدیریت خوشه‌های خبری",
+  "newsroom.manage_scoring": "مدیریت وزن‌های امتیازدهی",
+  "newsroom.view_costs": "مشاهده هزینه‌های هوش مصنوعی",
+  "newsroom.view_logs": "مشاهده لاگ‌های اتاق خبر",
 };
 
 /** All permission keys with an optional description for seeding. */

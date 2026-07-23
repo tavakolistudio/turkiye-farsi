@@ -2,6 +2,66 @@
 
 All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
 
+## Phase 10A — AI Editorial Newsroom (collection · dedup · scoring · draft queue)
+### Added
+- **Ingestion data model**: extended `Source` (feed URL, collection method, trust
+  level, enable/fetch bookkeeping) plus `IngestedNewsItem`, `NewsFetchBatch`,
+  `NewsPipelineJobLog`, `NewsStoryCluster(+Item)`, `NewsDraftProvenance`. Additive
+  migrations with RLS on the new tables.
+- **Safe collection pipeline**: SSRF-hardened fetch (public-IP-only, per-redirect
+  re-validation, size/timeout/redirect caps, conditional GET), XXE-safe feed
+  parsing (RSS/Atom/JSON), Persian normalization, tracking-free URL canonical.
+- **Dedup + clustering** (5 levels), **explainable importance scoring**
+  (configurable weights, 0–100 buckets), **trust evaluation** (social cap,
+  official rules, legal-claim fact-check).
+- **AI provider abstraction** (Disabled/Mock/OpenAI) with Zod-validated output,
+  prompt-injection boundaries, token/cost accounting and a daily budget guard.
+  **Copyright-safe Persian draft** builder — DRAFT-only, with source attribution.
+- **Review queue** `/admin/newsroom`, permission-gated admin API, and a
+  `CRON_SECRET`-protected daily collection cron. Real kill switches
+  (`NewsroomSettings`); AI and collection default OFF.
+- Docs: `AI_NEWSROOM.md`, `NEWSROOM_SOURCES_POLICY.md`, permanent rules in
+  `AGENTS.md`. 40 unit tests.
+### Added (completion pass)
+- **Settings admin** (kill switches, limits, scoring weights, reset), **source
+  collection management** (feed/method/trust/enable, SSRF-safe Test Feed, ETag/
+  Last-Modified/failure status, real conditional GET), **reprocess** &
+  **regenerate** (revision-safe, refuses to clobber human edits), **cluster
+  merge/split**, and **retention cleanup** (dry-run, advisory-locked, second
+  `CRON_SECRET` cron).
+- Fixes: identical cross-source stories now cluster (multi-source confirmation)
+  instead of being dropped; RBAC/CSRF errors map to 401/403/400 not 500; the
+  header market-ticker uses `useSyncExternalStore` (lint clean).
+- Coverage: 40 unit + 9 integration + 6 E2E, all green on local embedded
+  Postgres (never production).
+### Added (final review pass — merge readiness)
+- **AI actually wired in**: `createDraftFromItem`/`regenerateDraft` now call
+  the (previously unused) AI provider for the Persian draft text when
+  `aiEnabled`, the item clears `minScoreForAI`, and the daily budget guard has
+  room; any AI failure/disabled/budget-exhausted state falls back silently to
+  the rule-based draft. Real generation cost recorded on
+  `NewsDraftProvenance`, rolled into the daily budget total. Importance
+  scoring, classification and trust evaluation remain rule-based.
+- **Observability**: `/admin/newsroom/runs` (+ `/[id]`) surfaces
+  `NewsFetchBatch` history and per-stage `NewsPipelineJobLog` entries
+  (previously write-only), gated by the `newsroom.view_logs` permission.
+- **`NEWSROOM_SOURCE_CONFLICT`** wired to `trust.verificationStatus ===
+  "CONFLICTING"` (currently dormant — no detector sets that condition yet;
+  the notification path itself is tested).
+- **Cron consolidation for Vercel Hobby**: collection + cleanup combined into
+  one daily `/api/cron/newsroom-dispatch` job (`vercel.json` now registers 2
+  crons total: this + the pre-existing `/api/cron/publish`). The individual
+  routes still exist, CRON_SECRET-protected, for manual/ops use.
+- Fixes: a hardcoded test tokenHash collided with a leftover row from an
+  interrupted run; a stale e2e dark-mode color assertion left over from an
+  earlier theme; an e2e revision-restore race against a benign, expected
+  optimistic-concurrency conflict now retries like a real client would.
+- Coverage: 199 unit/integration + 71 E2E, all green on local embedded
+  Postgres (never production/Supabase).
+### Guarantees
+- No auto-publish, no AI images, no social auto-posting, no full copyrighted
+  text stored, no scraping of disallowed sources.
+
 ## Production deployment (Vercel)
 ### Changed
 - `vercel-build` is now `prisma migrate deploy && next build` — migrations apply

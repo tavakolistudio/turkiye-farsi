@@ -106,29 +106,43 @@ ensures a fresh Prisma Client on every build). To go live:
    `/robots.txt` (must now allow crawling), `/sitemap.xml`, `/news-sitemap.xml`,
    `/rss.xml`.
 
-## Scheduled publishing (Vercel Cron)
+## Scheduled jobs (Vercel Cron)
 
-`vercel.json` registers one cron job:
+`vercel.json` registers two cron jobs — the Vercel **Hobby** plan caps both the
+**count** (max 2 Cron Jobs) and the **frequency** (once per day) of scheduled
+crons; anything beyond either limit is rejected at deploy time. On **Pro**,
+both caps are lifted (more jobs, any frequency, e.g. hourly).
 
 ```json
-{ "crons": [{ "path": "/api/cron/publish", "schedule": "0 3 * * *" }] }
+{
+  "crons": [
+    { "path": "/api/cron/publish", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/newsroom-dispatch", "schedule": "0 4 * * *" }
+  ]
+}
 ```
 
-- **Schedule**: daily at 03:00 UTC (`0 3 * * *`). The Vercel **Hobby** plan only
-  permits **once-per-day** cron jobs — anything more frequent (e.g. hourly) is
-  rejected at deploy time. On **Pro**, raise the frequency (e.g. `0 * * * *`
-  hourly) so scheduled articles publish closer to their `scheduledAt`.
-- **What it does**: `POST`/`GET /api/cron/publish` → `schedulingService.runDue()`
+- **`/api/cron/publish`** (03:00 UTC daily) — `schedulingService.runDue()`
   publishes articles whose `scheduledAt` has passed. The claim is atomic
   (`updateMany` on `status = SCHEDULED`), so a re-run never double-publishes;
   each run writes a `PublishJobLog` row.
-- **Auth**: the route calls `isValidCronRequest`, which requires
+- **`/api/cron/newsroom-dispatch`** (04:00 UTC daily) — runs newsroom
+  collection then retention cleanup, in that order, in one invocation. This is
+  why they're combined into a single job instead of two: the Hobby count cap
+  (2 total) is already spent by `publish` + this one. Each stage still carries
+  its own concurrency guard (batch `RUNNING` lock; Postgres advisory lock), so
+  the combined run is safe against overlap with an independently-triggered
+  manual run. See [AI_NEWSROOM.md](./AI_NEWSROOM.md#cron--operations). If you
+  ever move to Pro and want them separate again, `/api/cron/newsroom-collect`
+  and `/api/cron/newsroom-cleanup` still exist and only need re-adding to
+  `vercel.json`.
+- **Auth**: every cron route calls `isValidCronRequest`, which requires
   `Authorization: Bearer <CRON_SECRET>` compared in constant time and **fails
   closed** when `CRON_SECRET` is unset. Vercel automatically attaches this header
   to cron invocations when `CRON_SECRET` is present in the project env. The
   secret is never placed in `vercel.json` or the URL.
-- Vercel Cron calls the path with `GET`; the route also accepts `POST` for manual
-  machine triggers. Both require the secret.
+- Vercel Cron calls each path with `GET`; the routes also accept `POST` for
+  manual machine triggers. Both require the secret.
 
 ### Required Vercel environment variables
 
@@ -171,7 +185,14 @@ Run against the real production origin:
   admin/workflow fields.
 - **Cron**: `GET /api/cron/publish` with no/blank secret → 401; with the correct
   `Authorization: Bearer <CRON_SECRET>` → 200 and a safe run (empty result when
-  nothing is due); a second call is idempotent.
+  nothing is due); a second call is idempotent. Same for
+  `GET /api/cron/newsroom-dispatch` — also 401 unauthenticated, and a
+  successful call returns both a `collection` and a `cleanup` result.
+- **Newsroom**: `/admin/newsroom` requires auth + permission (redirect/403 for
+  an unpermitted user, real access for Super Admin); a manual run with zero
+  active sources still completes (`sourceCount: 0`, no error) rather than
+  reporting the kill switch, when collection is enabled; a created draft is
+  `status: DRAFT` and does not appear in the public API or public site.
 
 Delete any test data/media afterwards; keep audit logs.
 

@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import { ApiError } from "@/lib/api/errors";
+import { AuthenticationError, AuthorizationError, CsrfError } from "@/server/auth/errors";
 
 /** Standard result shape for admin Server Actions that back forms. */
 export interface FormState {
@@ -15,6 +16,9 @@ export function toFormError(err: unknown): FormState {
     return { error: "اطلاعات واردشده معتبر نیست.", fieldErrors: err.flatten().fieldErrors };
   }
   if (err instanceof ApiError) {
+    return { error: err.message };
+  }
+  if (err instanceof AuthenticationError || err instanceof AuthorizationError || err instanceof CsrfError) {
     return { error: err.message };
   }
   console.error("[form action] unhandled:", err);

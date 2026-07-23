@@ -61,6 +61,61 @@ secrets in the report.
   and path-traversal guards (`src/server/storage/*`). SVG/executable types are
   rejected by omission.
 
+## Newsroom outbound fetch (SSRF)
+
+- Every feed URL is validated by `src/server/newsroom/security/url-guard.ts`
+  before any request: http/https only, no embedded credentials, and DNS is
+  resolved and checked against a public-IP allowlist (rejects loopback,
+  private, link-local, CGNAT and cloud metadata ranges) **before** connecting.
+  Redirects are followed manually (never automatically) and **re-validated on
+  every hop** — a redirect to a private address is rejected exactly like a
+  direct request to one. A hard redirect-count cap, a streamed response-size
+  cap, and a fetch timeout are enforced (`src/server/newsroom/fetch/safe-fetch.ts`).
+  Sources are never fetched without an explicit human review of that Source's
+  Terms/robots.txt (`termsReviewedAt`/`robotsReviewedAt`) — see
+  `NEWSROOM_SOURCES_POLICY.md`. Arbitrary attacker-supplied URLs are never
+  fetched: only URLs on approved, admin-managed `Source` rows are ever passed
+  to the fetch layer.
+- **Known residual risk — DNS rebinding TOCTOU:** `assertSafeUrl` resolves and
+  validates DNS itself, but the subsequent `fetch()` call lets Node's
+  runtime (undici) re-resolve the hostname independently rather than
+  connecting to the exact address we validated. A DNS server that returns a
+  different IP on each successive query (TTL=0) could theoretically flip from
+  a public to a private address in the narrow window between our check and
+  undici's own connect-time resolution. Closing this completely requires
+  pinning the socket to the validated IP — via a custom `undici` `Agent` with
+  a `connect.lookup` override (a new dependency and a nontrivial low-level
+  change), or rewriting the fetch loop onto `node:http`/`node:https` with a
+  custom `lookup` agent option (no new dependency, but a substantial rewrite
+  of a currently-tested code path). Both were judged too risky to ship
+  unverified against a guard that is otherwise working and covered by tests
+  (`tests/unit/newsroom-security.test.ts`, `tests/unit/safe-fetch.test.ts`).
+  Accepted because: sources are pre-approved admin-managed rows, not arbitrary
+  URLs, and the window is a handful of lines of synchronous code (no
+  intervening network I/O), making the race impractical to win reliably even
+  against a hostile authoritative resolver. Tracked as a follow-up, not a
+  blocker.
+
+## Newsroom AI enrichment
+
+- AI (OpenAI) is used **only** to draft the Persian article body/summary/title
+  when `aiEnabled` is on, the item clears `minScoreForAI`, and the daily
+  `dailyAiBudget` guard has room — never for importance scoring,
+  classification or trust evaluation, which remain deterministic/rule-based
+  (the final DRAFT/publish decision is always rule-based + human editor).
+  Any AI failure, disabled state, or exhausted budget silently falls back to
+  the rule-based draft; the pipeline never throws or blocks on an AI error.
+- All AI output is parsed through Zod schemas (`src/server/newsroom/ai/schemas.ts`)
+  before use — an untrusted/malformed response can never reach the database.
+  Source text handed to the model is bounded (title + short excerpt only,
+  never full article bodies) and passed through prompt-injection neutralization
+  (`src/server/newsroom/security/prompt-safety.ts`, tested in
+  `tests/unit/newsroom-security.test.ts`).
+- `OPENAI_API_KEY` is read only in `src/server/newsroom/ai/provider.ts`, which
+  is reachable solely through `newsroom.service.ts` (marked `import
+  "server-only"`) — never through a client component, and never
+  `NEXT_PUBLIC_`-prefixed, so it cannot reach the browser bundle.
+
 ## Indexability
 
 - `robots.txt` is dynamic: only a production Vercel deployment is crawlable;
