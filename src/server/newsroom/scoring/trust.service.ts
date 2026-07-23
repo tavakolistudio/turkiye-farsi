@@ -22,7 +22,14 @@ export interface TrustContext {
   sources: ClusterSourceInfo[];
   /** True if the story text makes a legal/immigration/regulatory claim. */
   hasLegalClaim: boolean;
-  /** Set when sources visibly disagree (e.g. differing numbers/outcomes). */
+  /**
+   * Set when sources visibly disagree (e.g. differing numbers/outcomes).
+   * TODO: no caller sets this yet — detecting disagreement requires comparing
+   * extracted claims across clustered items, which isn't built. Once it is,
+   * this flag (and the NEWSROOM_SOURCE_CONFLICT notification already wired to
+   * `verificationStatus === "CONFLICTING"` in pipeline.service.ts and
+   * newsroom.service.ts#reprocessItem) will work with no further changes.
+   */
   conflicting?: boolean;
 }
 

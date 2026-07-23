@@ -82,4 +82,19 @@ describe("trust evaluation", () => {
     });
     expect(r.requiresHumanFactCheck).toBe(true);
   });
+  it("marks CONFLICTING when the caller signals disagreeing sources", () => {
+    // No caller sets `conflicting` yet (claim-vs-claim comparison isn't built),
+    // but the status and its downstream notification must work the day one does.
+    const r = evaluateTrust({
+      sources: [
+        { sourceType: "MEDIA", isOfficial: false, trustLevel: 60, hasArticleUrl: true },
+        { sourceType: "MEDIA", isOfficial: false, trustLevel: 55, hasArticleUrl: true },
+      ],
+      hasLegalClaim: false,
+      conflicting: true,
+    });
+    expect(r.verificationStatus).toBe("CONFLICTING");
+    expect(r.requiresHumanFactCheck).toBe(true);
+    expect(r.trustScore).toBeLessThanOrEqual(30);
+  });
 });

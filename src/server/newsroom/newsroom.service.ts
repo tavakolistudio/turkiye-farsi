@@ -474,6 +474,12 @@ export const newsroomService = {
       },
     });
     await auditLog({ userId: ctx.actor.id, action: "newsroom.reprocess", entityType: "news_item", entityId: id, ip: ctx.ip, userAgent: ctx.userAgent, after: { ruleScore: importance.ruleScore, bucket } });
+    // No detector sets TrustContext.conflicting today (claim-vs-claim comparison
+    // across sources isn't built yet — that's real future work, not invented
+    // here). This fires the moment one lands; it's a no-op until then.
+    if (trust.verificationStatus === "CONFLICTING") {
+      await notifyEditorial("NEWSROOM_SOURCE_CONFLICT", `منابع در مورد «${item.title}» با هم تناقض دارند — نیازمند بررسی انسانی.`);
+    }
     return { id: updated.id, ruleScore: updated.ruleScore, finalScore: updated.finalScore, scoreBucket: updated.scoreBucket, trustScore: updated.trustScore };
   },
 

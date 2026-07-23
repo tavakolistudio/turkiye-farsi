@@ -274,6 +274,12 @@ async function processItem(
   if (bucket === "URGENT") {
     await notifyEditorial("NEWSROOM_URGENT", `خبر مهم (امتیاز ${importance.ruleScore}): ${norm.title.slice(0, 120)}`);
   }
+  // No detector sets TrustContext.conflicting today (claim-vs-claim comparison
+  // across clustered sources isn't built yet). This fires the moment one
+  // lands; until then it's a dormant no-op, not an invented trigger.
+  if (trust.verificationStatus === "CONFLICTING") {
+    await notifyEditorial("NEWSROOM_SOURCE_CONFLICT", `منابع در مورد «${norm.title.slice(0, 120)}» با هم تناقض دارند — نیازمند بررسی انسانی.`);
+  }
 
   return bucket === "REJECT" ? "rejected" : "created";
 }
