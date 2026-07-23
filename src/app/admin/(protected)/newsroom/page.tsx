@@ -50,6 +50,7 @@ export default async function NewsroomPage({
   ]);
 
   const canRun = hasPermission(actor, PERMISSIONS.NEWSROOM_RUN_COLLECTION);
+  const canViewLogs = hasPermission(actor, PERMISSIONS.NEWSROOM_VIEW_LOGS);
   const canDraft = hasPermission(actor, PERMISSIONS.NEWSROOM_CREATE_DRAFT);
   const canReject = hasPermission(actor, PERMISSIONS.NEWSROOM_REJECT);
   const canReprocess = hasPermission(actor, PERMISSIONS.NEWSROOM_REVIEW);
@@ -75,6 +76,11 @@ export default async function NewsroomPage({
           <Link href="/admin/newsroom/clusters" className={buttonVariants({ variant: "outline", size: "sm" })}>
             خوشه‌ها
           </Link>
+          {canViewLogs && (
+            <Link href="/admin/newsroom/runs" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              اجراها و لاگ‌ها
+            </Link>
+          )}
           <RunCollectionButton canRun={canRun} />
         </div>
       </div>

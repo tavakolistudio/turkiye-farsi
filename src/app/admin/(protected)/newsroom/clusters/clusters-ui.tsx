@@ -65,7 +65,12 @@ export function ClusterList({ clusters, canManage }: { clusters: ClusterRow[]; c
         <Card key={c.id} className="flex items-center justify-between gap-3 p-4">
           <div className="flex min-w-0 items-center gap-3">
             {canManage && (
-              <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} aria-label="انتخاب خوشه" />
+              <input
+                type="checkbox"
+                checked={selected.includes(c.id)}
+                onChange={() => toggle(c.id)}
+                aria-label={`انتخاب خوشه ${c.representativeTitle ?? "بدون عنوان"}`}
+              />
             )}
             <div className="min-w-0">
               <p className="truncate font-medium">{c.representativeTitle ?? "بدون عنوان"}</p>
@@ -130,7 +135,12 @@ export function ClusterSplit({ clusterId, items, canManage }: { clusterId: strin
         {items.map((it) => (
           <Card key={it.id} className="flex items-center gap-3 p-3">
             {canManage && (
-              <input type="checkbox" checked={selected.includes(it.id)} onChange={() => toggle(it.id)} aria-label="انتخاب آیتم" />
+              <input
+                type="checkbox"
+                checked={selected.includes(it.id)}
+                onChange={() => toggle(it.id)}
+                aria-label={`انتخاب آیتم ${it.title}`}
+              />
             )}
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{it.title}</p>
