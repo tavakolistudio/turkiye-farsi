@@ -15,11 +15,19 @@ function startOfToday(now = new Date()): Date {
 }
 
 export async function getTodaySpendUsd(now = new Date()): Promise<number> {
-  const agg = await prisma.newsFetchBatch.aggregate({
-    _sum: { estimatedCost: true },
-    where: { startedAt: { gte: startOfToday(now) } },
-  });
-  return agg._sum.estimatedCost ?? 0;
+  const [batchAgg, draftAgg] = await Promise.all([
+    prisma.newsFetchBatch.aggregate({
+      _sum: { estimatedCost: true },
+      where: { startedAt: { gte: startOfToday(now) } },
+    }),
+    // Draft (re)generation cost is recorded on the provenance row it touches,
+    // which may be created earlier than today but updated (re-generated) today.
+    prisma.newsDraftProvenance.aggregate({
+      _sum: { generationCost: true },
+      where: { updatedAt: { gte: startOfToday(now) } },
+    }),
+  ]);
+  return (batchAgg._sum.estimatedCost ?? 0) + (draftAgg._sum.generationCost ?? 0);
 }
 
 /** Track spend within a single run and against the daily cap. */

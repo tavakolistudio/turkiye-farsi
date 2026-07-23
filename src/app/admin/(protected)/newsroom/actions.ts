@@ -28,9 +28,10 @@ export async function createDraftAction(id: string): Promise<FormState> {
   try {
     await assertSameOrigin();
     const ctx = await getServiceContext();
-    const { slug } = await newsroomService.createDraftFromItem(ctx, id);
+    const r = await newsroomService.createDraftFromItem(ctx, id);
     revalidatePath("/admin/newsroom");
-    return { ok: true, message: `پیش‌نویس ساخته شد: ${slug}` };
+    const source = r.generatedByAI ? `هوش مصنوعی (هزینه تخمینی $${r.costEstimate.toFixed(4)})` : "مبتنی بر قاعده";
+    return { ok: true, message: `پیش‌نویس ساخته شد: ${r.slug} — ${source}` };
   } catch (e) {
     return toFormError(e);
   }
@@ -106,9 +107,10 @@ export async function regenerateDraftAction(id: string, force = false): Promise<
   try {
     await assertSameOrigin();
     const ctx = await getServiceContext();
-    await newsroomService.regenerateDraft(ctx, id, { force });
+    const r = await newsroomService.regenerateDraft(ctx, id, { force });
     revalidatePath("/admin/newsroom");
-    return { ok: true, message: "پیش‌نویس بازتولید شد." };
+    const source = r.generatedByAI ? `هوش مصنوعی (هزینه تخمینی $${r.costEstimate.toFixed(4)})` : "مبتنی بر قاعده";
+    return { ok: true, message: `پیش‌نویس بازتولید شد — ${source}` };
   } catch (e) {
     return toFormError(e);
   }

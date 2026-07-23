@@ -11,7 +11,7 @@ import { newsroomPipeline } from "./pipeline.service";
 import { newsroomSettingsService, coerceSettings, DEFAULT_NEWSROOM_SETTINGS, type NewsroomSettings } from "./settings";
 import { newsroomSettingsSchema, newsroomSourceCollectionSchema, testFeedSchema } from "@/lib/validations/newsroom";
 import { testFeed as runFeedTest } from "./fetch/source-test.service";
-import { buildDraft, type DraftSourceLink } from "./draft/persian-draft.service";
+import { buildDraft, type DraftInput, type DraftSourceLink } from "./draft/persian-draft.service";
 import type { ClassificationResult, TrustResult, TrustVerification } from "./types";
 import { scoreImportance, scoreBucket } from "./scoring/importance.service";
 import { evaluateTrust, type ClusterSourceInfo } from "./scoring/trust.service";
@@ -21,6 +21,9 @@ import { mergeClustersSchema, splitClusterSchema } from "@/lib/validations/newsr
 import { revisionService } from "@/server/services/revision.service";
 import { runCleanup } from "./cleanup.service";
 import { randomUUID } from "node:crypto";
+import { BudgetGuard } from "./budget";
+import { getAIProvider, aiEnvFromSettings, type AiItemContext } from "./ai/provider";
+import { notifyEditorial } from "./notifications";
 
 /**
  * Admin-facing newsroom operations. Every method is permission-gated and
@@ -45,6 +48,63 @@ async function clusterSourceInfosFor(clusterId: string): Promise<ClusterSourceIn
     trustLevel: l.newsItem.source.trustLevel,
     hasArticleUrl: !!l.newsItem.sourceUrl,
   }));
+}
+
+interface AiDraftOutcome {
+  ai: DraftInput["ai"];
+  provider: string;
+  model: string;
+  cost: number;
+}
+
+/**
+ * Best-effort AI enrichment for a draft. Returns null (never throws) whenever AI
+ * is disabled, the item is below the AI score threshold, the daily budget is
+ * exhausted, or the provider call itself fails — callers always have the
+ * rule-based `buildDraft` baseline to fall back to.
+ */
+async function tryAiDraft(
+  item: { title: string; excerpt: string | null; sourceUrl: string; publishedAt: Date | null; finalScore: number | null },
+  sourceName: string,
+  settings: NewsroomSettings,
+): Promise<AiDraftOutcome | null> {
+  if (!settings.aiEnabled) return null;
+  if (item.finalScore == null || item.finalScore < settings.minScoreForAI) return null;
+
+  const guard = await BudgetGuard.create(settings.dailyAiBudget);
+  if (!guard.canSpend()) {
+    await notifyEditorial(
+      "NEWSROOM_BUDGET_WARNING",
+      "سقف بودجه روزانه هوش مصنوعی اتاق خبر پر شده است؛ پیش‌نویس‌ها به‌صورت مبتنی بر قاعده ساخته می‌شوند.",
+    );
+    return null;
+  }
+
+  try {
+    const provider = await getAIProvider(aiEnvFromSettings(true));
+    if (!provider.enabled) return null;
+    const ctx: AiItemContext = {
+      title: item.title,
+      excerpt: item.excerpt,
+      sourceName,
+      sourceUrl: item.sourceUrl,
+      publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
+      availableCategories: await categoriesForClassify(),
+      availableTags: await tagsForClassify(),
+    };
+    const result = await provider.generatePersianDraft(ctx);
+    guard.record(result.usage.costUsd);
+    if (guard.nearLimit()) {
+      await notifyEditorial(
+        "NEWSROOM_BUDGET_WARNING",
+        "مصرف بودجه روزانه هوش مصنوعی اتاق خبر به بیش از ۹۰٪ سقف رسیده است.",
+      );
+    }
+    return { ai: result.data, provider: result.usage.provider, model: result.usage.model, cost: result.usage.costUsd };
+  } catch {
+    // AI failed — the caller falls back to the rule-based draft. Never throws.
+    return null;
+  }
 }
 
 /** Audit-safe summary of the powerful toggles (no secrets). */
@@ -134,6 +194,7 @@ export const newsroomService = {
    */
   async createDraftFromItem(ctx: ServiceContext, id: string) {
     assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_CREATE_DRAFT);
+    const settings = await newsroomSettingsService.get();
     const item = await prisma.ingestedNewsItem.findUnique({
       where: { id },
       include: {
@@ -176,9 +237,14 @@ export const newsroomService = {
       reasonCodes: [],
     };
 
+    const aiOutcome = await tryAiDraft(
+      { title: item.title, excerpt: item.excerpt, sourceUrl: item.sourceUrl, publishedAt: item.publishedAt, finalScore: item.finalScore },
+      sourceEntries[0]?.source.name ?? "",
+      settings,
+    );
     const draft = buildDraft({
       title: item.title, excerpt: item.excerpt, publishedAt: item.publishedAt,
-      classification, trust, sources: sourceLinks,
+      classification, trust, sources: sourceLinks, ai: aiOutcome?.ai,
     });
 
     // Resolve suggested category (existing only — never create taxonomy).
@@ -226,7 +292,11 @@ export const newsroomService = {
           storyClusterId: item.clusterLinks[0]?.clusterId ?? null,
           primaryItemId: item.id,
           ingestionBatchId: item.fetchBatchId,
-          generatedByAI: false,
+          generatedByAI: !!aiOutcome,
+          aiProvider: aiOutcome?.provider ?? null,
+          aiModel: aiOutcome?.model ?? null,
+          aiGeneratedAt: aiOutcome ? new Date() : null,
+          generationCost: aiOutcome?.cost ?? 0,
           ruleScore: item.ruleScore, aiScore: item.aiScore, finalScore: item.finalScore,
           trustScore: item.trustScore,
           verificationStatus: item.verificationStatus ?? "UNVERIFIED",
@@ -239,8 +309,9 @@ export const newsroomService = {
       return created;
     });
 
-    await auditLog({ userId: ctx.actor.id, action: "newsroom.create_draft", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: item.id } });
-    return { articleId: article.id, slug: article.slug };
+    await auditLog({ userId: ctx.actor.id, action: "newsroom.create_draft", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: item.id, generatedByAI: !!aiOutcome } });
+    await notifyEditorial("NEWSROOM_DRAFT_READY", `پیش‌نویس جدید آماده بررسی است: «${article.title}»`, { articleId: article.id });
+    return { articleId: article.id, slug: article.slug, generatedByAI: !!aiOutcome, costEstimate: aiOutcome?.cost ?? 0 };
   },
 
   // ── Clusters ────────────────────────────────────────────────
@@ -414,6 +485,7 @@ export const newsroomService = {
    */
   async regenerateDraft(ctx: ServiceContext, id: string, opts: { force?: boolean } = {}) {
     assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_REGENERATE);
+    const settings = await newsroomSettingsService.get();
     const prov = await prisma.newsDraftProvenance.findFirst({
       where: { primaryItemId: id },
       orderBy: { createdAt: "desc" },
@@ -453,7 +525,12 @@ export const newsroomService = {
       conflictingClaims: item.verificationStatus === "CONFLICTING", primarySourceAvailable: false,
       requiresHumanFactCheck: item.verificationStatus !== "OFFICIAL_CONFIRMED", reasonCodes: [],
     };
-    const draft = buildDraft({ title: item.title, excerpt: item.excerpt, publishedAt: item.publishedAt, classification, trust, sources: sourceLinks });
+    const aiOutcome = await tryAiDraft(
+      { title: item.title, excerpt: item.excerpt, sourceUrl: item.sourceUrl, publishedAt: item.publishedAt, finalScore: item.finalScore },
+      sourceMap.values().next().value?.name ?? "",
+      settings,
+    );
+    const draft = buildDraft({ title: item.title, excerpt: item.excerpt, publishedAt: item.publishedAt, classification, trust, sources: sourceLinks, ai: aiOutcome?.ai });
 
     await prisma.$transaction(async (tx) => {
       // Snapshot the current content before overwriting (nothing is lost).
@@ -471,13 +548,19 @@ export const newsroomService = {
       });
       await tx.newsDraftProvenance.update({
         where: { id: prov.id },
-        data: { aiGeneratedAt: prov.generatedByAI ? new Date() : prov.aiGeneratedAt, finalScore: item.finalScore, trustScore: item.trustScore },
+        data: {
+          generatedByAI: !!aiOutcome,
+          aiProvider: aiOutcome?.provider ?? prov.aiProvider,
+          aiModel: aiOutcome?.model ?? prov.aiModel,
+          aiGeneratedAt: aiOutcome ? new Date() : prov.aiGeneratedAt,
+          generationCost: aiOutcome ? prov.generationCost + aiOutcome.cost : prov.generationCost,
+          finalScore: item.finalScore, trustScore: item.trustScore,
+        },
       });
     });
 
-    await auditLog({ userId: ctx.actor.id, action: "newsroom.regenerate", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: id, forced: !!opts.force } });
-    // Rule-based regeneration has no AI cost; AI-assisted regen would report here.
-    return { articleId: article.id, costEstimate: 0 };
+    await auditLog({ userId: ctx.actor.id, action: "newsroom.regenerate", entityType: "article", entityId: article.id, ip: ctx.ip, userAgent: ctx.userAgent, after: { fromItem: id, forced: !!opts.force, generatedByAI: !!aiOutcome } });
+    return { articleId: article.id, generatedByAI: !!aiOutcome, costEstimate: aiOutcome?.cost ?? 0 };
   },
 
   // ── Settings ────────────────────────────────────────────────
@@ -596,6 +679,36 @@ export const newsroomService = {
       });
     }
     return report;
+  },
+
+  // ── Observability (runs / job logs) ────────────────────────
+  async listRuns(ctx: ServiceContext, opts: { page?: number; pageSize?: number } = {}) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_VIEW_LOGS);
+    const pageSize = Math.min(Math.max(opts.pageSize ?? 20, 1), 100);
+    const page = Math.max(opts.page ?? 1, 1);
+    const [rows, total] = await Promise.all([
+      prisma.newsFetchBatch.findMany({
+        orderBy: { startedAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.newsFetchBatch.count(),
+    ]);
+    return { rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  },
+
+  async getRunLogs(ctx: ServiceContext, batchId: string) {
+    assertPermission(ctx.actor, PERMISSIONS.NEWSROOM_VIEW_LOGS);
+    const [batch, logs] = await Promise.all([
+      prisma.newsFetchBatch.findUnique({ where: { id: batchId } }),
+      prisma.newsPipelineJobLog.findMany({
+        where: { batchId },
+        orderBy: { startedAt: "asc" },
+        take: 500,
+      }),
+    ]);
+    if (!batch) throw ApiError.notFound("اجرا یافت نشد.");
+    return { batch, logs };
   },
 
   async stats(ctx: ServiceContext) {
