@@ -6,11 +6,7 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/newsroom-collect",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/newsroom-cleanup",
+      "path": "/api/cron/newsroom-dispatch",
       "schedule": "0 4 * * *"
     }
   ]

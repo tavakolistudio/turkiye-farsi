@@ -7,9 +7,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Retention cleanup cron. CRON_SECRET-protected (fails closed). Soft-deletes old
+ * Retention cleanup. CRON_SECRET-protected (fails closed). Soft-deletes old
  * REJECTED items and archives old job logs; never touches drafts, provenance,
  * articles, revisions or source attribution. Advisory-locked and idempotent.
+ *
+ * Not on Vercel's automatic schedule (see vercel.json) — the Hobby plan's cron
+ * count limit meant collection + cleanup were combined into a single daily
+ * `/api/cron/newsroom-dispatch` job. This route is kept, still CRON_SECRET
+ * -protected, for manual/ops triggering.
  */
 function handle(req: Request) {
   return withApi(async () => {

@@ -9,10 +9,15 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Scheduled newsroom collection. Authenticated by CRON_SECRET (Bearer), never a
+ * Newsroom collection. Authenticated by CRON_SECRET (Bearer), never a
  * query string; fails closed when the secret is unset. The pipeline enforces a
  * batch lock (no concurrent runs), honours every kill switch, and is idempotent
  * (unique sourceId+externalId), so re-invocation is safe. Never publishes.
+ *
+ * Not on Vercel's automatic schedule (see vercel.json) — the Hobby plan's cron
+ * count limit meant collection + cleanup were combined into a single daily
+ * `/api/cron/newsroom-dispatch` job. This route is kept, still CRON_SECRET
+ * -protected, for manual/ops triggering.
  */
 function handle(req: Request) {
   return withApi(async () => {
