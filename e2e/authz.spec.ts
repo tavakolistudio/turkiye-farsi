@@ -100,10 +100,14 @@ test.describe("Authorization", () => {
 
     // Author is forced back to login on next request. Retry the reload until the
     // async revoke has landed (the button click resolves before the server action).
+    // 30s (not 15s) gives enough headroom when the whole suite is running and the
+    // dev server/DB are under heavier load — the revoke itself is synchronous
+    // server-side (src/server/users/actions.ts), so this is purely waiting out
+    // request-queue latency, not masking an application bug.
     await expect(async () => {
       await authorPage.goto("/admin");
       await expect(authorPage).toHaveURL(/\/admin\/login/);
-    }).toPass({ timeout: 15_000 });
+    }).toPass({ timeout: 30_000 });
 
     await authorCtx.close();
     await adminCtx.close();

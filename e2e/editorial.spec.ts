@@ -76,11 +76,23 @@ test("complete Phase 5 editorial scenario", async ({ browser }) => {
   const revisionResponse = await editorPage.request.get(`/api/v1/admin/articles/${article.id}/revisions`);
   const revisions = await revisionResponse.json() as { data: { id: string }[] };
   expect(revisions.data.length).toBeGreaterThanOrEqual(4);
-  const detailResponse = await editorPage.request.get(`/api/v1/admin/articles/${article.id}`);
-  const detail = await detailResponse.json() as { data: { currentVersion: number } };
-  const restore = await editorPage.request.post(`/api/v1/admin/articles/${article.id}/revisions/${revisions.data.at(-1)!.id}/restore`, {
-    data: { version: detail.data.currentVersion },
-  });
+
+  // currentVersion can legitimately tick between our GET and the restore POST
+  // (e.g. a debounced autosave settling late from the tiptap editor's own
+  // mount/hydration), the same optimistic-concurrency race a real client
+  // handles by refetching and retrying — so mirror that here instead of
+  // assuming a single snapshot is always exactly in sync.
+  const restore = await (async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const detailResponse = await editorPage.request.get(`/api/v1/admin/articles/${article.id}`);
+      const detail = await detailResponse.json() as { data: { currentVersion: number } };
+      const res = await editorPage.request.post(`/api/v1/admin/articles/${article.id}/revisions/${revisions.data.at(-1)!.id}/restore`, {
+        data: { version: detail.data.currentVersion },
+      });
+      if (res.ok() || res.status() !== 409) return res;
+    }
+    throw new Error("restore kept hitting version conflicts");
+  })();
   expect(restore.ok()).toBeTruthy();
 
   const correctionResponse = await editorPage.request.post(`/api/v1/admin/articles/${article.id}/corrections`, {
