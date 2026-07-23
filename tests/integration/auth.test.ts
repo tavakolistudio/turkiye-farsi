@@ -123,7 +123,7 @@ describe("Password reset lifecycle", () => {
     // Give the user an active session that reset should revoke.
     await prisma.session.create({
       data: {
-        tokenHash: createHash("sha256").update("dummy").digest("hex"),
+        tokenHash: createHash("sha256").update(`dummy-${u.id}`).digest("hex"),
         userId: u.id,
         expiresAt: new Date(Date.now() + 60_000),
       },

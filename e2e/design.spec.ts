@@ -81,7 +81,7 @@ test.describe.serial("Phase 8 editorial design", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "فعال‌کردن حالت تاریک" }).first().click();
     await expect(page.locator("html")).toHaveClass(/dark/);
-    expect(await page.locator("body").evaluate((node) => getComputedStyle(node).backgroundColor)).toBe("rgb(23, 23, 21)");
+    expect(await page.locator("body").evaluate((node) => getComputedStyle(node).backgroundColor)).toBe("rgb(18, 18, 18)");
   });
 
   test("article is readable on desktop and mobile without changing metadata", async ({ page }) => {
