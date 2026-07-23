@@ -13,6 +13,31 @@ vi.mock("@/server/newsroom/fetch/safe-fetch", () => ({
   })),
 }));
 
+// Stub the AI provider layer so AI-enabled draft generation is deterministic
+// and controllable (success/failure) without a real API key or network call.
+// `aiMode` is read at call time, so tests can flip it before each scenario.
+let aiMode: "success" | "fail" = "success";
+vi.mock("@/server/newsroom/ai/provider", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/newsroom/ai/provider")>();
+  return {
+    ...actual,
+    getAIProvider: vi.fn(async () => ({
+      name: "test", model: "test-model-1", enabled: true,
+      async generatePersianDraft(ctx: { title: string }) {
+        if (aiMode === "fail") throw new Error("simulated AI failure");
+        return {
+          data: {
+            title: ctx.title, subtitle: null, summary: "خلاصه تولیدشده توسط هوش مصنوعی آزمایشی",
+            body: "متن تولیدشده توسط هوش مصنوعی آزمایشی", whyItMatters: null, whoIsAffected: null,
+            whatToDo: null, isBreakingSuggestion: false,
+          },
+          usage: { provider: "test", model: "test-model-1", promptTokens: 10, completionTokens: 20, costUsd: 0.02 },
+        };
+      },
+    })),
+  };
+});
+
 import { prisma } from "@/lib/db";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import type { AuthUser } from "@/server/rbac/authz";
@@ -140,6 +165,31 @@ describe("newsroom pipeline (integration)", () => {
     expect(revisions).toBeGreaterThanOrEqual(1);
   });
 
+  it("7: AI failure during draft generation falls back to the rule-based draft (pipeline keeps working)", async () => {
+    await newsroomSettingsService.save({ ...DEFAULT_NEWSROOM_SETTINGS, isEnabled: true, collectionEnabled: true, aiEnabled: true, minScoreForAI: 0, dailyAiBudget: 5 });
+    aiMode = "fail";
+    try {
+      const target = await prisma.ingestedNewsItem.findFirstOrThrow({ where: { sourceId: sourceAId, title: { contains: "لیر و ارز" } } });
+      const r = await newsroomService.createDraftFromItem(ctx, target.id);
+      expect(r.generatedByAI).toBe(false);
+      expect(r.costEstimate).toBe(0);
+      const article = await prisma.article.findUniqueOrThrow({ where: { id: r.articleId } });
+      expect(article.status).toBe("DRAFT");
+    } finally {
+      aiMode = "success";
+    }
+  });
+
+  it("19: AI daily budget exhausted falls back to the rule-based draft (no cost incurred)", async () => {
+    await newsroomSettingsService.save({ ...DEFAULT_NEWSROOM_SETTINGS, isEnabled: true, collectionEnabled: true, aiEnabled: true, minScoreForAI: 0, dailyAiBudget: 0 });
+    // aiMode stays "success" — if the guard didn't block it, this would prove
+    // budget enforcement failed rather than merely a flaky AI stub.
+    const target = await prisma.ingestedNewsItem.findFirstOrThrow({ where: { sourceId: sourceBId, title: { contains: "قانون تازه اقامت" } } });
+    const r = await newsroomService.createDraftFromItem(ctx, target.id);
+    expect(r.generatedByAI).toBe(false);
+    expect(r.costEstimate).toBe(0);
+  });
+
   it("13/14: cluster split then merge", async () => {
     const clusters = await prisma.newsStoryCluster.findMany({ where: { status: "OPEN", items: { some: { newsItem: { sourceId: { in: [sourceAId, sourceBId] } } } } }, include: { items: true } });
     const multi = clusters.find((c) => c.items.length >= 2);
@@ -158,6 +208,28 @@ describe("newsroom pipeline (integration)", () => {
     expect(report.dryRun).toBe(true);
     const after = await prisma.ingestedNewsItem.count({ where: { sourceId: { in: [sourceAId, sourceBId] }, deletedAt: null } });
     expect(after).toBe(before); // dry-run changes nothing
+  });
+
+  it("16: retention cleanup performs a real soft-delete of old rejected items only", async () => {
+    const old = await prisma.ingestedNewsItem.create({
+      data: {
+        sourceId: sourceAId, externalId: `${PREFIX}-old-rejected`, sourceUrl: "https://a.example.com/old-rejected",
+        title: "خبر ردشده قدیمی برای تست پاک‌سازی", ingestionStatus: "REJECTED",
+        createdAt: new Date(Date.now() - 400 * 86_400_000),
+      },
+    });
+    await newsroomSettingsService.save({ ...DEFAULT_NEWSROOM_SETTINGS, retentionDays: 30 });
+    const report = await newsroomService.cleanup(ctx, false);
+    expect(report.dryRun).toBe(false);
+    expect(report.rejectedItemsSoftDeleted).toBeGreaterThanOrEqual(1);
+
+    const refreshed = await prisma.ingestedNewsItem.findUniqueOrThrow({ where: { id: old.id } });
+    expect(refreshed.deletedAt).not.toBeNull(); // soft-deleted...
+    expect(refreshed.title).toBe(old.title); // ...never hard-deleted
+
+    // A non-rejected, recent item from the same source must survive untouched.
+    const recent = await prisma.ingestedNewsItem.findFirst({ where: { sourceId: sourceAId, title: { contains: "قانون تازه اقامت" } } });
+    expect(recent?.deletedAt).toBeNull();
   });
 
   it("17: unauthorized access is denied", async () => {
