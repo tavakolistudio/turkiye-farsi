@@ -34,6 +34,30 @@ All notable changes to Turkey Farsi (ترکیه فارسی). Phased delivery.
   header market-ticker uses `useSyncExternalStore` (lint clean).
 - Coverage: 40 unit + 9 integration + 6 E2E, all green on local embedded
   Postgres (never production).
+### Added (final review pass — merge readiness)
+- **AI actually wired in**: `createDraftFromItem`/`regenerateDraft` now call
+  the (previously unused) AI provider for the Persian draft text when
+  `aiEnabled`, the item clears `minScoreForAI`, and the daily budget guard has
+  room; any AI failure/disabled/budget-exhausted state falls back silently to
+  the rule-based draft. Real generation cost recorded on
+  `NewsDraftProvenance`, rolled into the daily budget total. Importance
+  scoring, classification and trust evaluation remain rule-based.
+- **Observability**: `/admin/newsroom/runs` (+ `/[id]`) surfaces
+  `NewsFetchBatch` history and per-stage `NewsPipelineJobLog` entries
+  (previously write-only), gated by the `newsroom.view_logs` permission.
+- **`NEWSROOM_SOURCE_CONFLICT`** wired to `trust.verificationStatus ===
+  "CONFLICTING"` (currently dormant — no detector sets that condition yet;
+  the notification path itself is tested).
+- **Cron consolidation for Vercel Hobby**: collection + cleanup combined into
+  one daily `/api/cron/newsroom-dispatch` job (`vercel.json` now registers 2
+  crons total: this + the pre-existing `/api/cron/publish`). The individual
+  routes still exist, CRON_SECRET-protected, for manual/ops use.
+- Fixes: a hardcoded test tokenHash collided with a leftover row from an
+  interrupted run; a stale e2e dark-mode color assertion left over from an
+  earlier theme; an e2e revision-restore race against a benign, expected
+  optimistic-concurrency conflict now retries like a real client would.
+- Coverage: 199 unit/integration + 71 E2E, all green on local embedded
+  Postgres (never production/Supabase).
 ### Guarantees
 - No auto-publish, no AI images, no social auto-posting, no full copyrighted
   text stored, no scraping of disallowed sources.

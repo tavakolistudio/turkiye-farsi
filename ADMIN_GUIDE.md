@@ -40,6 +40,35 @@ Sidebar links appear only for permissions you hold.
 - Real upload (image / mp4·webm / mp3 / PDF, ≤25 MB). Grid view with type, size,
   Alt, uploader, date, folder. Edit Alt/Caption/Credit. In-use files can't be deleted.
 
+## اتاق خبر هوشمند (Newsroom) — `/admin/newsroom` (Phase 10A)
+
+An automated pipeline that collects, de-duplicates, clusters, scores and
+trust-evaluates news from **approved** sources only, and lets an editor turn
+a promising item into a private editorial `DRAFT` — never publishes anything
+itself. See [AI_NEWSROOM.md](./AI_NEWSROOM.md) for the full technical picture.
+
+- **`/admin/newsroom`** — review queue by importance bucket
+  (urgent/high/review/low) plus rejected/drafted tabs. Per item: **ساخت
+  پیش‌نویس** (create draft), **بازپردازش** (reprocess — re-scores with current
+  settings), **بازتولید پیش‌نویس** (regenerate — only once a draft exists),
+  **رد** (reject). **اجرای جمع‌آوری** triggers a manual collection run.
+- **`/admin/newsroom/settings`** — the kill switches (`اتاق خبر فعال`,
+  `جمع‌آوری فعال`, `هوش مصنوعی فعال`), run limits, the 12 scoring weights,
+  reset-to-defaults, and the retention cleanup card (پیش‌نمایش / اجرای
+  پاک‌سازی). AI is used only to draft the article text (never scoring or the
+  publish decision) — see AI_NEWSROOM.md's "Rule-based vs AI responsibilities".
+- **`/admin/newsroom/sources`** — every source must be reviewed and approved
+  here (feed URL, method, trust level) before collection ever polls it;
+  **Test Feed** checks a URL without saving anything if it fails. Never add a
+  source without confirming its Terms of Service/robots.txt allow this.
+- **`/admin/newsroom/clusters`** — merge several clusters (pick the primary)
+  or open one to split specific items into a new cluster.
+- **`/admin/newsroom/runs`** — history of collection runs and their per-stage
+  outcome (useful when a source starts failing or a run reports errors).
+- A created draft always lands in **`/admin/articles`** as a normal `DRAFT` —
+  review, edit and publish it exactly like any other article; nothing here
+  bypasses the ordinary editorial workflow.
+
 ## Users — `/admin/users`
 Manage users, deactivate/reactivate, and revoke sessions (requires `user.manage`).
 

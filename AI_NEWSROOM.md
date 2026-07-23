@@ -70,7 +70,23 @@ confirmation.
 
 Env: `OPENAI_API_KEY`, `OPENAI_NEWSROOM_MODEL`, `OPENAI_NEWSROOM_TIMEOUT_MS`,
 `OPENAI_NEWSROOM_MAX_TOKENS`. A daily budget (`dailyAiBudget`) is enforced by
-`budget.ts`.
+`budget.ts` and rolls up spend from both collection batches and draft
+generation cost recorded on `NewsDraftProvenance`.
+
+### Rule-based vs AI responsibilities (important)
+
+AI is used for **exactly one thing**: drafting the Persian title/summary/body
+text (`generatePersianDraft`), and only when `aiEnabled` is on, the item's
+score clears `minScoreForAI`, and the daily budget guard has room. It is
+called from `createDraftFromItem` and `regenerateDraft`
+(`newsroom.service.ts`) with the rule-based `buildDraft` output as a baseline
+that AI fields are merged over; on any AI error, missing budget, or AI being
+disabled, the rule-based draft is used unchanged — the pipeline never throws
+on an AI failure. **Importance scoring, classification and trust evaluation
+are always rule-based** — AI is never consulted for those, and never for the
+final publish decision. The final decision to actually publish an article is
+always a **human editor**, acting outside this pipeline entirely; this
+pipeline only ever produces a private `DRAFT`.
 
 ## Settings / kill switches (all real)
 
@@ -91,6 +107,8 @@ Collection and AI default to **OFF**.
   / Last-Modified / failure status.
 - `/admin/newsroom/clusters` (+ `/[id]`) — multi-select **merge** and per-item
   **split**.
+- `/admin/newsroom/runs` (+ `/[id]`) — recent collection-batch history and their
+  per-stage `NewsPipelineJobLog` entries, gated by `newsroom.view_logs`.
 
 ## Reprocess & regenerate
 
@@ -102,11 +120,20 @@ Collection and AI default to **OFF**.
 
 ## Cron & operations
 
-- `GET/POST /api/cron/newsroom-collect` — collection. `CRON_SECRET` (Bearer,
-  never query string; fails closed). Daily on Vercel Hobby (`vercel.json`).
-- `GET/POST /api/cron/newsroom-cleanup` — retention cleanup (soft-deletes old
-  REJECTED items, archives old job logs; never touches drafts/provenance/
-  articles/revisions/attribution). Advisory-locked, idempotent, `CRON_SECRET`.
+- `GET/POST /api/cron/newsroom-dispatch` — the one newsroom job actually on
+  Vercel's schedule (`vercel.json`, daily). Runs collection then retention
+  cleanup, in that fixed order, in a single invocation. `CRON_SECRET`
+  (Bearer, never query string; fails closed).
+- **Why combined:** the Vercel Hobby plan caps the number of scheduled Cron
+  Jobs, and this project already has `/api/cron/publish` (unrelated,
+  pre-existing) registered — adding two more newsroom crons would exceed the
+  cap. Collection and cleanup each already carry their own concurrency guard
+  (batch `RUNNING` lock; Postgres advisory lock), so running them
+  back-to-back in one request never double-processes or overlaps with an
+  independently-triggered manual run.
+- `GET/POST /api/cron/newsroom-collect` and `/api/cron/newsroom-cleanup` still
+  exist individually (same `CRON_SECRET` protection) but are **not** on the
+  automatic schedule anymore — kept for manual/ops triggering only.
 - Batch lock: only one `RUNNING` batch at a time; idempotent via
   `unique(sourceId, externalId)`. Real conditional GET (stored ETag /
   If-Modified-Since per source).
@@ -114,8 +141,8 @@ Collection and AI default to **OFF**.
 
 ## Tests
 
-40 unit + 9 integration (offline, mocked SSRF fetch) + 6 E2E (real browser,
-DB-seeded item) — all run against a local embedded Postgres, never production.
+199 unit/integration + 71 E2E (real browser) — all run against a local
+embedded Postgres (`npm run db:start`), never production/Supabase.
 
 ## Permissions
 
@@ -123,6 +150,41 @@ DB-seeded item) — all run against a local embedded Postgres, never production.
 `.create_draft`, `.regenerate`, `.manage_clusters`, `.manage_scoring`,
 `.view_costs`, `.view_logs`. Editor-in-Chief gets all; Editor gets
 view/review/create_draft/reject; Reporter/Author get view. Enforced server-side.
+
+## Notifications
+
+`NEWSROOM_URGENT`, `NEWSROOM_SOURCE_FAILING` and `NEWSROOM_PIPELINE_FAILURE`
+fire on real pipeline events. `NEWSROOM_DRAFT_READY` fires when an editor
+creates a draft. `NEWSROOM_BUDGET_WARNING` fires when the daily AI budget
+blocks a would-be AI call, or crosses 90% of the cap.
+`NEWSROOM_SOURCE_CONFLICT` is wired to `trust.verificationStatus ===
+"CONFLICTING"` in both the pipeline and `reprocessItem` — but **no detector
+sets that condition today**: comparing extracted claims across clustered
+sources to detect actual disagreement isn't built. The notification path
+itself is tested (with `evaluateTrust` mocked to force `CONFLICTING`), so it
+will work correctly the moment a real detector is added; nothing was invented
+to force a trigger that doesn't exist yet.
+
+## Manual source approval policy
+
+No source is ever polled without a human first reviewing and approving it in
+`/admin/newsroom/sources` (setting `feedUrl`/`collectionMethod` and confirming
+Terms/robots.txt review, tracked via `termsReviewedAt`/`robotsReviewedAt`) —
+see [NEWSROOM_SOURCES_POLICY.md](./NEWSROOM_SOURCES_POLICY.md) for the
+approval checklist. The pipeline never fetches an arbitrary URL; only
+`feedUrl` values on approved, `isEnabled` `Source` rows are ever requested.
+
+## No-auto-publish policy
+
+Every code path that can produce or touch a `NewsDraftProvenance`
+(`createDraftFromItem`, `regenerateDraft`) writes an `Article` with
+`status: "DRAFT"` — hardcoded, not a variable, and never conditionally
+changed. Nothing in `src/server/newsroom/` ever sets `PUBLISHED`,
+`APPROVED`, or `SCHEDULED`; publishing an article is only ever performed by a
+human editor through the ordinary editorial workflow
+(`editorial-workflow.service.ts`), entirely outside this pipeline. Covered by
+integration tests (drafts always DRAFT, never public) and e2e tests (draft
+not public, no auto-publish across the full UI flow).
 
 ## Copyright
 
