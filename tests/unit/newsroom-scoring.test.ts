@@ -55,6 +55,30 @@ describe("importance scoring", () => {
     expect(scoreBucket(45)).toBe("LOW");
     expect(scoreBucket(20)).toBe("REJECT");
   });
+
+  // Real sample text from a live TRT Haber (Turkish) test run — previously
+  // every Turkish-language item flatlined at the source-trust baseline
+  // because every keyword group was Persian-only.
+  it("scores Turkish-language financial news above generic Turkish local news", () => {
+    const financial = scoreImportance({
+      normalizedText: "Türkiye Cumhuriyet Merkez Bankasının (TCMB) toplam rezervleri, bir önceki haftaya göre azalarak 160 milyar 490 milyon dolar oldu",
+      sourceTrustLevel: 80, sourceIsOfficial: true, clusterSourceCount: 1, publishedAt: new Date(),
+    });
+    const genericLocal = scoreImportance({
+      normalizedText: "Edirne'de Pomeranian cinsi 5 köpek yavrusu ele geçirildi",
+      sourceTrustLevel: 80, sourceIsOfficial: true, clusterSourceCount: 1, publishedAt: new Date(),
+    });
+    expect(financial.ruleScore).toBeGreaterThan(genericLocal.ruleScore);
+    expect(financial.reasons.some((r) => r.includes("مالی"))).toBe(true);
+  });
+
+  it("scores a Turkish immigration/legal story as relevant", () => {
+    const r = scoreImportance({
+      normalizedText: "Göç İdaresi yabancılar için oturma izni başvurularında yeni bir kural açıkladı",
+      sourceTrustLevel: 80, sourceIsOfficial: true, clusterSourceCount: 1, publishedAt: new Date(),
+    });
+    expect(r.reasons.some((reason) => reason.includes("ایرانیان") || reason.includes("حقوقی"))).toBe(true);
+  });
 });
 
 describe("trust evaluation", () => {
