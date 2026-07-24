@@ -458,6 +458,95 @@ h1, h2, h3, h4, h5, h6, .font-headline { font-family: var(--font-headline); }
   .editorial-card-horizontal h3 { font-size: .96rem; }
 }
 
+/* ── Apple-style homepage (scoped to .editorial-home so listing/article pages
+   keep the broadsheet system). Calm headings, elevated rounded cards. ─────── */
+.editorial-home { --card-radius: 18px; --card-line: color-mix(in srgb, hsl(var(--border)) 55%, transparent); }
+
+/* Section headings: large, tight, no heavy rule — a soft pill "see all" link. */
+.editorial-home .editorial-section-heading {
+  min-height: auto; margin-bottom: 1.25rem; padding-bottom: 0;
+  border-bottom: 0; align-items: baseline;
+}
+.editorial-home .editorial-section-heading h2 {
+  font-size: clamp(1.4rem, 2.4vw, 2rem); font-weight: 800; letter-spacing: -.03em;
+}
+.editorial-home .editorial-section-heading a {
+  min-height: 2.25rem; padding-inline: .85rem; border-radius: 999px;
+  background: hsl(var(--muted)); color: hsl(var(--foreground));
+  font-size: .78rem; font-weight: 700; transition: background .15s ease;
+}
+.editorial-home .editorial-section-heading a:hover {
+  background: color-mix(in srgb, hsl(var(--foreground)) 12%, hsl(var(--muted)));
+}
+
+/* Image cards → elevated white rounded surfaces that lift on hover. */
+.editorial-home .editorial-card {
+  border-bottom: 0; background: hsl(var(--card));
+  border: 1px solid var(--card-line); border-radius: var(--card-radius);
+  overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 12px 30px -14px rgb(0 0 0 / .14);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.editorial-home .editorial-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgb(0 0 0 / .06), 0 20px 44px -16px rgb(0 0 0 / .2);
+}
+.editorial-home .editorial-card-media { border-radius: 0; }
+.editorial-home .editorial-card:hover .editorial-card-media img { transform: scale(1.03); opacity: 1; }
+.editorial-home .editorial-card-copy { flex: 1; padding: 1rem 1.15rem 1.25rem; }
+.editorial-home .editorial-card h3 { letter-spacing: -.012em; }
+.editorial-home .editorial-card h2 { letter-spacing: -.03em; }
+.editorial-home .editorial-card-lead .editorial-card-copy { padding: 1.25rem 1.5rem 1.5rem; }
+.editorial-home .editorial-card-horizontal { padding: 0; gap: 0; }
+.editorial-home .editorial-card-horizontal .editorial-card-copy { padding: 1rem 1.15rem; }
+
+/* Secondary stories under the hero → light rounded rows, not heavy cards. */
+.editorial-home .homepage-secondary { border-top: 0; display: flex; flex-direction: column; gap: .6rem; }
+.editorial-home .homepage-secondary .editorial-card-compact {
+  padding: .85rem 1rem; background: hsl(var(--card));
+  border: 1px solid var(--card-line); border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .03);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.editorial-home .homepage-secondary .editorial-card-compact:hover {
+  transform: translateY(-2px); box-shadow: 0 10px 26px -14px rgb(0 0 0 / .2);
+}
+.editorial-home .editorial-card-thumb { border-radius: 10px; }
+
+/* Most-viewed + latest → clean rounded card groups with hairline rows. */
+.editorial-home .homepage-most-viewed .most-viewed-list,
+.editorial-home .latest-news-list {
+  border-top: 0; background: hsl(var(--card));
+  border: 1px solid var(--card-line); border-radius: var(--card-radius);
+  padding-inline: 1.15rem;
+}
+.editorial-home .homepage-most-viewed .most-viewed-list { overflow: hidden; }
+.editorial-home .most-viewed-list li,
+.editorial-home .latest-timeline li { border-bottom-color: var(--card-line); }
+.editorial-home .most-viewed-list li:last-child,
+.editorial-home .latest-timeline li:last-child { border-bottom: 0; }
+
+/* Impact box → soft neutral card instead of the loud red-bordered panel. */
+.editorial-home .impact-for-iranians {
+  border: 1px solid var(--card-line); border-radius: 22px; background: hsl(var(--card));
+  box-shadow: 0 1px 3px rgb(0 0 0 / .04), 0 24px 56px -28px rgb(0 0 0 / .18);
+}
+.editorial-home .impact-grid,
+.editorial-home .impact-grid > div + div { border-color: var(--card-line); }
+
+/* Video section → rounded dark panel; keep its cards on the dark surface. */
+.editorial-home .homepage-video { border-radius: 22px; }
+.editorial-home .homepage-video .editorial-card {
+  background: rgb(255 255 255 / .06); border-color: rgb(255 255 255 / .14); box-shadow: none;
+}
+.editorial-home .homepage-video .editorial-card:hover {
+  background: rgb(255 255 255 / .1); box-shadow: none;
+}
+
+@media (max-width: 760px) {
+  .editorial-home .homepage-most-viewed .most-viewed-list { padding-block: .25rem; }
+}
+
 /* Long-form article treatment. SEO and document structure remain unchanged. */
 .article-page { max-width: 70rem; }
 .article-page > .public-breadcrumb, .article-page > nav[aria-label="مسیر"] { max-width: var(--article-width); margin-inline: auto; }
