@@ -48,12 +48,12 @@ describe("importance scoring", () => {
     const zeroed = scoreImportance(ctx, { ...DEFAULT_SCORING_WEIGHTS, relevanceToIraniansInTurkey: 0 });
     expect(zeroed.ruleScore).toBeLessThan(base.ruleScore);
   });
-  it("maps scores to the right buckets", () => {
-    expect(scoreBucket(95)).toBe("URGENT");
-    expect(scoreBucket(80)).toBe("HIGH");
-    expect(scoreBucket(65)).toBe("REVIEW");
-    expect(scoreBucket(45)).toBe("LOW");
-    expect(scoreBucket(20)).toBe("REJECT");
+  it("maps scores to the right buckets (calibrated to real feed scores)", () => {
+    expect(scoreBucket(50)).toBe("URGENT");
+    expect(scoreBucket(37)).toBe("HIGH");   // e.g. Brent oil / central bank
+    expect(scoreBucket(28)).toBe("REVIEW"); // e.g. Iran-related, ransom
+    expect(scoreBucket(21)).toBe("LOW");    // e.g. inflation expectations
+    expect(scoreBucket(18)).toBe("REJECT"); // local incidents / noise floor
   });
 
   // Real sample text from a live TRT Haber (Turkish) test run — previously

@@ -124,13 +124,24 @@ function computeNovelty(ctx: ImportanceContext): number {
   return 0.1;
 }
 
-/** Map a 0..100 score to the review-queue bucket (thresholds from the spec). */
+/**
+ * Map a 0..100 rule score to the review-queue bucket.
+ *
+ * Thresholds are calibrated against the ACTUAL score range that real
+ * mainstream Turkish news feeds produce for this audience: genuinely relevant
+ * items (currency, central bank, Iran-related, inflation) land ~24–37, while
+ * irrelevant local incidents (traffic accidents, petty crime) land ~12–18.
+ * The original 40/60/75/90 scale was aspirational — it assumed a perfectly
+ * on-topic Persian item would score 60+, which no real Turkish-source item
+ * reaches — so every item was rejected. These lower cutoffs let the relevant
+ * items surface into the queue while the local-noise floor stays rejected.
+ */
 export type ScoreBucket = "REJECT" | "LOW" | "REVIEW" | "HIGH" | "URGENT";
 
 export function scoreBucket(score: number): ScoreBucket {
-  if (score >= 90) return "URGENT";
-  if (score >= 75) return "HIGH";
-  if (score >= 60) return "REVIEW";
-  if (score >= 40) return "LOW";
+  if (score >= 48) return "URGENT";
+  if (score >= 34) return "HIGH";
+  if (score >= 26) return "REVIEW";
+  if (score >= 20) return "LOW";
   return "REJECT";
 }
