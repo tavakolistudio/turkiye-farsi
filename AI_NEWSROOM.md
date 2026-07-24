@@ -51,8 +51,9 @@ confirmation.
 - **Importance** (0–100) is a weighted sum of 12 explainable components; weights
   are admin-configurable (`NewsroomSettings.scoringWeights`). Rule score and AI
   score are stored **separately**; the rule score always stands alone so the
-  pipeline survives AI failure. Buckets: `0–39 reject · 40–59 low · 60–74 review
-  · 75–89 high · 90–100 urgent`.
+  pipeline survives AI failure. Buckets (calibrated to the real score range
+  mainstream Turkish feeds produce — relevant items land ~24–37, local noise
+  ~12–18): `<20 reject · 20–25 low · 26–33 review · 34–47 high · 48+ urgent`.
 - **Trust** measures how well-sourced a story is. Social-only stories cap at
   `SINGLE_SOURCE`; legal/immigration claims without an official source are flagged
   `requiresHumanFactCheck`. **Even a score of 100 is never auto-published.**
