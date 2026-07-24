@@ -27,17 +27,18 @@ export interface ImportanceContext {
 }
 
 // Keyword groups (matched against comparableText, which is normalized/lowercased).
+// Bilingual: source feeds are Persian OR Turkish, so every group carries both.
 const KW = {
-  relevance: ["ایران", "ایرانی", "اتباع خارجی", "مهاجر", "خارجی"],
-  residence: ["اقامت", "ایکامت", "ikamet", "شهروندی", "تابعیت", "پاسپورت", "گذرنامه"],
-  legal: ["قانون", "مقررات", "بخشنامه", "مصوبه", "دادگاه", "جریمه", "ممنوع", "الزام", "اداره مهاجرت", "goc"],
-  financial: ["لیر", "دلار", "ارز", "تورم", "مالیات", "بانک", "قیمت", "اجاره", "حقوق", "دستمزد", "یارانه"],
-  urgency: ["فوری", "همین امروز", "لحظاتی پیش", "هم‌اکنون", "اعلام شد", "تعطیل"],
-  geo: ["ترکیه", "استانبول", "آنکارا", "یالووا", "ازمیر", "بورسا", "آنتالیا"],
-  publicSafety: ["زلزله", "سیل", "آتش", "تصادف", "انفجار", "هشدار", "طوفان", "کولاک", "بیماری", "شیوع"],
-  actionable: ["مدارک", "مراحل", "نوبت", "ثبت‌نام", "درخواست", "راهنما", "چگونه", "باید"],
-  virality: ["ویدیو", "وایرال", "جنجال", "واکنش", "شگفت"],
-  longTerm: ["توافق", "طرح", "پروژه", "چشم‌انداز", "استراتژی", "بلندمدت"],
+  relevance: ["ایران", "ایرانی", "اتباع خارجی", "مهاجر", "خارجی", "iran", "iranlı", "yabancı uyruklu", "göçmen"],
+  residence: ["اقامت", "ایکامت", "ikamet", "شهروندی", "تابعیت", "پاسپورت", "گذرنامه", "oturma izni", "vatandaşlık", "pasaport", "göç idaresi"],
+  legal: ["قانون", "مقررات", "بخشنامه", "مصوبه", "دادگاه", "جریمه", "ممنوع", "الزام", "اداره مهاجرت", "goc", "kanun", "yönetmelik", "genelge", "mahkeme", "ceza", "yasak", "zorunlu", "sınır dışı"],
+  financial: ["لیر", "دلار", "ارز", "تورم", "مالیات", "بانک", "قیمت", "اجاره", "حقوق", "دستمزد", "یارانه", "lira", "dolar", "döviz", "enflasyon", "vergi", "banka", "fiyat", "kira", "maaş", "ücret", "merkez bankası", "rezerv"],
+  urgency: ["فوری", "همین امروز", "لحظاتی پیش", "هم‌اکنون", "اعلام شد", "تعطیل", "acil", "az önce", "açıklandı", "son dakika"],
+  geo: ["ترکیه", "استانبول", "آنکارا", "یالووا", "ازمیر", "بورسا", "آنتالیا", "türkiye", "istanbul", "ankara", "yalova", "izmir", "bursa", "antalya"],
+  publicSafety: ["زلزله", "سیل", "آتش", "تصادف", "انفجار", "هشدار", "طوفان", "کولاک", "بیماری", "شیوع", "deprem", "sel", "yangın", "kaza", "patlama", "uyarı", "fırtına", "hastalık", "salgın", "çöktü", "öldü", "yaralı"],
+  actionable: ["مدارک", "مراحل", "نوبت", "ثبت‌نام", "درخواست", "راهنما", "چگونه", "باید", "belge", "randevu", "başvuru", "kılavuz", "nasıl"],
+  virality: ["ویدیو", "وایرال", "جنجال", "واکنش", "شگفت", "video", "viral", "tartışma", "tepki", "şaşırtıcı"],
+  longTerm: ["توافق", "طرح", "پروژه", "چشم‌انداز", "استراتژی", "بلندمدت", "anlaşma", "proje", "strateji", "uzun vadeli"],
 };
 
 function hits(text: string, words: string[]): number {

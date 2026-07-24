@@ -16,23 +16,24 @@ export interface TaxonomyEntry {
   name: string;
 }
 
-/** Signal keywords → the category NAME/slug fragments they imply. */
+/** Signal keywords → the category NAME/slug fragments they imply. Bilingual
+ *  (Persian + Turkish) since source feeds come in either language. */
 const TOPIC_KEYWORDS: { match: string[]; hint: string[] }[] = [
-  { match: ["اقامت", "ایکامت", "ikamet"], hint: ["اقامت", "residence"] },
-  { match: ["مهاجرت", "اداره مهاجرت", "goc"], hint: ["مهاجرت", "قوانین", "residence"] },
-  { match: ["شهروندی", "تابعیت", "پاسپورت ترکیه"], hint: ["شهروندی", "قوانین"] },
-  { match: ["قانون", "مقررات", "بخشنامه", "مصوبه"], hint: ["قوانین", "قانون"] },
-  { match: ["لیر", "دلار", "ارز", "تورم"], hint: ["اقتصاد", "ارز", "لیر"] },
-  { match: ["مالیات", "بانک", "حساب بانکی"], hint: ["اقتصاد", "بانک", "مالیات"] },
-  { match: ["ملک", "خانه", "اجاره", "آپارتمان"], hint: ["ملک", "اقتصاد"] },
-  { match: ["کار", "استخدام", "شغل", "حقوق"], hint: ["کار", "اقتصاد"] },
-  { match: ["پرواز", "ویزا", "فرودگاه"], hint: ["پرواز", "ویزا", "گردشگری"] },
-  { match: ["گمرک"], hint: ["گمرک", "قوانین"] },
-  { match: ["استانبول"], hint: ["استانبول"] },
-  { match: ["یالووا"], hint: ["یالووا"] },
-  { match: ["گردشگری", "سفر", "تور"], hint: ["گردشگری"] },
-  { match: ["ایران و ترکیه", "روابط"], hint: ["روابط", "اخبار"] },
-  { match: ["ترکیه"], hint: ["اخبار ترکیه", "ترکیه", "اخبار"] },
+  { match: ["اقامت", "ایکامت", "ikamet", "oturma izni"], hint: ["اقامت", "residence"] },
+  { match: ["مهاجرت", "اداره مهاجرت", "goc", "göç idaresi", "göçmen"], hint: ["مهاجرت", "قوانین", "residence"] },
+  { match: ["شهروندی", "تابعیت", "پاسپورت ترکیه", "vatandaşlık", "türk pasaportu"], hint: ["شهروندی", "قوانین"] },
+  { match: ["قانون", "مقررات", "بخشنامه", "مصوبه", "kanun", "yönetmelik", "genelge"], hint: ["قوانین", "قانون"] },
+  { match: ["لیر", "دلار", "ارز", "تورم", "lira", "dolar", "döviz", "enflasyon", "merkez bankası"], hint: ["اقتصاد", "ارز", "لیر"] },
+  { match: ["مالیات", "بانک", "حساب بانکی", "vergi", "banka"], hint: ["اقتصاد", "بانک", "مالیات"] },
+  { match: ["ملک", "خانه", "اجاره", "آپارتمان", "emlak", "kira", "daire"], hint: ["ملک", "اقتصاد"] },
+  { match: ["کار", "استخدام", "شغل", "حقوق", "iş", "istihdam", "maaş"], hint: ["کار", "اقتصاد"] },
+  { match: ["پرواز", "ویزا", "فرودگاه", "uçuş", "vize", "havalimanı"], hint: ["پرواز", "ویزا", "گردشگری"] },
+  { match: ["گمرک", "gümrük"], hint: ["گمرک", "قوانین"] },
+  { match: ["استانبول", "istanbul"], hint: ["استانبول"] },
+  { match: ["یالووا", "yalova"], hint: ["یالووا"] },
+  { match: ["گردشگری", "سفر", "تور", "turizm", "seyahat"], hint: ["گردشگری"] },
+  { match: ["ایران و ترکیه", "روابط", "iran ve türkiye", "ilişkiler"], hint: ["روابط", "اخبار"] },
+  { match: ["ترکیه", "türkiye"], hint: ["اخبار ترکیه", "ترکیه", "اخبار"] },
 ];
 
 export function classify(text: string, categories: TaxonomyEntry[], tags: TaxonomyEntry[]): ClassificationResult {
@@ -58,22 +59,22 @@ export function classify(text: string, categories: TaxonomyEntry[], tags: Taxono
     .slice(0, 6)
     .map((tag) => tag.slug);
 
-  const geographicScope = t.includes(comparableText("استانبول"))
+  const geographicScope = t.includes(comparableText("استانبول")) || t.includes(comparableText("istanbul"))
     ? "استانبول"
-    : t.includes(comparableText("یالووا"))
+    : t.includes(comparableText("یالووا")) || t.includes(comparableText("yalova"))
       ? "یالووا"
-      : t.includes(comparableText("ترکیه"))
+      : t.includes(comparableText("ترکیه")) || t.includes(comparableText("türkiye"))
         ? "ترکیه"
         : null;
 
   const sensitivityLevel: ClassificationResult["sensitivityLevel"] =
-    /حقوق|قانون|مهاجرت|اقامت|شهروندی|جریمه|اخراج/.test(text) ? "HIGH" : "LOW";
+    /حقوق|قانون|مهاجرت|اقامت|شهروندی|جریمه|اخراج|kanun|göç|ikamet|vatandaşlık|ceza|sınır dışı/i.test(text) ? "HIGH" : "LOW";
 
   return {
     primaryCategorySlug,
     secondaryCategorySlugs,
     suggestedTagSlugs,
-    affectedAudience: /ایران|اتباع|مهاجر/.test(text) ? "ایرانیان مقیم ترکیه" : null,
+    affectedAudience: /ایران|اتباع|مهاجر|iranlı|yabancı|göçmen/i.test(text) ? "ایرانیان مقیم ترکیه" : null,
     geographicScope,
     contentType: null,
     sensitivityLevel,

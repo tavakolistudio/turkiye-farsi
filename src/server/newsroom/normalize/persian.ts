@@ -55,7 +55,11 @@ export function comparableText(input: string): string {
     .replace(/[!-/:-@[-`{-~«»؟،؛”“‘’–—…]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    // Turkish capital İ lowercases (per JS's locale-agnostic algorithm) to
+    // "i" + a stray combining dot above (U+0307), not plain "i" — strip it so
+    // Turkish keyword matching ("İstanbul" vs "istanbul") is reliable.
+    .replace(/̇/g, "");
 }
 
 /** Known source brand suffixes to peel off a title's tail (e.g. "… - ایسنا"). */
