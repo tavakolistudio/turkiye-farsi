@@ -39,6 +39,9 @@
   --accent-foreground: 0 0% 100%;
   --breaking: 351 84% 43%;
   --breaking-foreground: 0 0% 100%;
+  /* Wine / burgundy — the category nav band. */
+  --wine: 348 60% 26%;
+  --wine-foreground: 40 30% 96%;
   --warning: 351 84% 43%;
   --warning-foreground: 0 0% 100%;
   --destructive: 0 0% 5%;
@@ -334,15 +337,17 @@ h1, h2, h3, h4, h5, h6, .font-headline { font-family: var(--font-headline); }
 .editorial-wordmark strong { display: block; font-family: var(--font-headline); font-size: clamp(2.45rem, 5vw, 4.4rem); font-weight: 900; letter-spacing: -.035em; }
 .editorial-wordmark span { display: block; margin-top: .7rem; color: hsl(var(--muted-foreground)); font-size: .78rem; letter-spacing: .08em; }
 .editorial-masthead-search { justify-self: end; visibility: hidden; }
-.editorial-nav-row { position: sticky; top: 0; z-index: 45; border-block: 1px solid hsl(var(--border)); background: color-mix(in srgb, hsl(var(--background)) 96%, transparent); backdrop-filter: blur(10px); }
+.editorial-nav-row { position: sticky; top: 0; z-index: 45; border-block: 1px solid color-mix(in srgb, black 22%, hsl(var(--wine))); background: hsl(var(--wine)); color: hsl(var(--wine-foreground)); }
 .editorial-nav-row > div { min-height: 3.25rem; display: flex; align-items: center; gap: 1.25rem; }
 .editorial-navigation { min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; }
 .editorial-navigation ul { display: flex; align-items: stretch; white-space: nowrap; }
-.editorial-navigation li + li::before { content: "|"; align-self: center; color: hsl(var(--border)); font-weight: 300; }
-.editorial-navigation a { min-height: 3.2rem; padding-inline: .7rem; display: inline-flex; align-items: center; border-bottom: 3px solid transparent; font-size: .86rem; font-weight: 700; letter-spacing: .01em; }
-.editorial-navigation a:hover { color: hsl(var(--foreground)); text-decoration: underline; text-underline-offset: .3em; }
-.editorial-navigation a[aria-current="page"] { border-bottom-color: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.editorial-navigation li + li::before { content: "|"; align-self: center; color: rgb(255 255 255 / .28); font-weight: 300; }
+.editorial-navigation a { min-height: 3.2rem; padding-inline: .7rem; display: inline-flex; align-items: center; border-bottom: 3px solid transparent; font-size: .86rem; font-weight: 700; letter-spacing: .01em; color: hsl(var(--wine-foreground)); }
+.editorial-navigation a:hover { color: #fff; text-decoration: underline; text-underline-offset: .3em; }
+.editorial-navigation a[aria-current="page"] { border-bottom-color: #fff; color: #fff; }
 .editorial-nav-search { flex: 0 0 auto; }
+.editorial-nav-row .editorial-icon-button { color: hsl(var(--wine-foreground)); }
+.editorial-nav-row .editorial-icon-button:hover { color: #fff; }
 .editorial-menu-toggle { min-width: 2.75rem; min-height: 2.75rem; display: none; place-items: center; border: 1px solid hsl(var(--border)); border-radius: var(--radius-editorial); background: hsl(var(--card)); }
 .editorial-mobile-panel { position: absolute; inset-block: 0; inset-inline-start: 0; width: min(23rem, 92vw); padding: 1.25rem; display: flex; flex-direction: column; border-inline-end: 1px solid hsl(var(--border)); background: hsl(var(--card)); animation: editorial-drawer .18s ease-out; }
 .editorial-mobile-link { min-height: 3rem; padding: .7rem .5rem; display: flex; align-items: center; border-bottom: 1px solid hsl(var(--border)); font-weight: 700; }
@@ -499,6 +504,12 @@ h1, h2, h3, h4, h5, h6, .font-headline { font-family: var(--font-headline); }
 .editorial-home .editorial-card-lead .editorial-card-copy { padding: 1.25rem 1.5rem 1.5rem; }
 .editorial-home .editorial-card-horizontal { padding: 0; gap: 0; }
 .editorial-home .editorial-card-horizontal .editorial-card-copy { padding: 1rem 1.15rem; }
+/* Calmer image proportions on the homepage — the 16:10 broadsheet crops read
+   too tall/heavy here. Shorter 16:9, and a hard cap on the lead image. */
+.editorial-home .editorial-card-media img { object-fit: cover; }
+.editorial-home .editorial-card-lead .editorial-card-media { aspect-ratio: 16 / 9; max-height: 340px; }
+.editorial-home .editorial-card-vertical .editorial-card-media { aspect-ratio: 16 / 9; }
+.editorial-home .editorial-card-horizontal .editorial-card-media { aspect-ratio: 3 / 2; }
 
 /* Secondary stories under the hero → light rounded rows, not heavy cards. */
 .editorial-home .homepage-secondary { border-top: 0; display: flex; flex-direction: column; gap: .6rem; }
